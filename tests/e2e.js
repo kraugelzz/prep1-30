@@ -147,6 +147,23 @@ const scenarios = {
     check('ไม่มีข้อความให้เตรียมเพิ่ม', !q('.notice[role="status"]'));
   },
 
+  async 'cache ถูกล้าง → service worker เติมกลับเอง'() {
+    await boot(null);
+    const sw = win().navigator.serviceWorker;
+    const reg = await Promise.race([sw.ready, wait(5000).then(() => null)]);
+    if (!reg) { check('service worker พร้อม', false, 'ไม่พร้อมใน 5 วินาที'); return; }
+    await wait(1500); // รอ install เติม cache รอบแรก
+    for (const k of await caches.keys()) if (k.startsWith('prep72-')) await caches.delete(k);
+    reg.active.postMessage('heal');
+    let ok = false;
+    for (let i = 0; i < 20 && !ok; i++) {
+      await wait(250);
+      ok = !!(await caches.match(new URL('../js/plan.js', location.href).href)) &&
+           !!(await caches.match(new URL('../index.html', location.href).href));
+    }
+    check('เติมไฟล์กลับเข้า cache', ok);
+  },
+
   async 'เกิน 7 วัน: มีขั้นเพิ่ม'() {
     await boot(seed({ days: 14 }), '#/item/kit-4/2');
     check('ขั้นเพิ่มเรื่องแผงโซลาร์', text('h1')?.includes('แผงโซลาร์'), text('h1'));

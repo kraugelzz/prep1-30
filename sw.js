@@ -1,7 +1,7 @@
 // เก็บทุกไฟล์ไว้ในเครื่อง เปิดได้แม้ไม่มีเน็ต
 // VERSION มาจาก hash ของไฟล์ทั้งหมด — แก้ไฟล์แล้วรัน `npm run stamp`
 // (npm test จะล้มถ้าลืม) เครื่องผู้ใช้จึงได้ของใหม่เสมอ
-const VERSION = 'prep72-95e12d82';
+const VERSION = 'prep72-1a0db134';
 
 const FILES = [
   './',
@@ -38,19 +38,42 @@ self.addEventListener('activate', e => {
   );
 });
 
+// ไฟล์ของแอปในรูป URL เต็ม — ใช้ตัดสินว่าอะไรควรเก็บ (ไม่เก็บไฟล์อื่นใน origin เดียวกัน)
+const APP_URLS = new Set(FILES.map(f => new URL(f, self.registration.scope).href));
+
+// เติมไฟล์ที่หายจาก cache (เช่น เบราว์เซอร์ล้างเพราะพื้นที่เต็ม) ตอนที่ยังมีเน็ต
+async function heal() {
+  const cache = await caches.open(VERSION);
+  const have = new Set((await cache.keys()).map(r => r.url));
+  const missing = [...APP_URLS].filter(u => !have.has(u));
+  await Promise.all(missing.map(u =>
+    fetch(new Request(u, { cache: 'reload' })).then(r => (r.ok ? cache.put(u, r) : null)).catch(() => null)));
+  return missing.length;
+}
+
 self.addEventListener('message', e => {
   if (e.data === 'skipWaiting') self.skipWaiting();
+  if (e.data === 'heal') e.waitUntil(heal());
 });
 
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  const url = new URL(req.url);
+  url.search = '';
   e.respondWith(
     caches.match(req, { ignoreSearch: true }).then(hit => {
       if (hit) return hit;
-      return fetch(req).catch(() =>
-        req.mode === 'navigate' ? caches.match('index.html') : Response.error(),
-      );
+      return fetch(req)
+        .then(res => {
+          // ไฟล์ของแอปที่ไม่อยู่ใน cache: เก็บไว้ใช้ตอนออฟไลน์ครั้งหน้า
+          if (res.ok && APP_URLS.has(url.href)) {
+            const copy = res.clone();
+            e.waitUntil(caches.open(VERSION).then(c => c.put(url.href, copy)));
+          }
+          return res;
+        })
+        .catch(() => (req.mode === 'navigate' ? caches.match('index.html') : Response.error()));
     }),
   );
 });

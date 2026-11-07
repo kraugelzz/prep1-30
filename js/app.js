@@ -618,6 +618,8 @@ render();
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('sw.js').then(reg => {
     ui.offlineReady = true;
+    // ขอให้ service worker เติมไฟล์ที่หายจาก cache (ถ้ามี) ตอนที่ยังออนไลน์
+    navigator.serviceWorker.ready.then(r => r.active?.postMessage("heal"));
     const watch = w => {
       w.addEventListener('statechange', () => {
         if (w.state === 'installed' && navigator.serviceWorker.controller) {
