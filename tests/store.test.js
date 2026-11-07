@@ -120,3 +120,9 @@ test('reset ล้างกลับเป็นค่าเริ่มต้�
   assert.deepEqual(a.state, defaultState());
   assert.deepEqual(createStore(st).state, defaultState());
 });
+
+test('สถานะข้ามที่ค้างบนข้อที่ทำแล้วถูกล้างตอนโหลด', () => {
+  const st = fakeStorage();
+  st.setItem(KEY, JSON.stringify({ version: 1, done: { 'kit-1': '2026-11-01' }, skipped: { 'kit-1': true, 'kit-2': true }, expiry: {}, contacts: [] }));
+  assert.deepEqual(createStore(st).state.skipped, { 'kit-2': true });
+});

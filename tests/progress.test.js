@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ITEMS, ORDER } from '../js/data.js';
-import { percent, groupPercent, expiringIds, nextItem, doneCount, isSnoozed, addDays } from '../js/progress.js';
+import { percent, groupPercent, expiringIds, nextItem, doneCount, isSnoozed, isExpired, ackUntil, addDays } from '../js/progress.js';
 import { defaultState } from '../js/store.js';
 
 const TODAY = new Date('2026-11-07T12:00:00');
@@ -80,7 +80,22 @@ test('ของหมดอายุไปแล้ว เตือนเสม�
   s.expiry['kit-1'] = plusDays(-1);
   s.snoozed['kit-1'] = addDays(TODAY, 30);
   assert.equal(isSnoozed(s, 'kit-1', TODAY), false);
-  assert.deepEqual(nextItem(s, ORDER, TODAY), { id: 'kit-1', reason: 'expiring' });
+  assert.deepEqual(nextItem(s, ORDER, TODAY), { id: 'kit-1', reason: 'expired' });
+});
+
+test('isExpired: เลยวันหมดอายุแล้วเท่านั้น', () => {
+  const s = defaultState();
+  s.expiry['kit-1'] = plusDays(-1);
+  s.expiry['kit-2'] = plusDays(3);
+  assert.equal(isExpired(s, 'kit-1', TODAY), true);
+  assert.equal(isExpired(s, 'kit-2', TODAY), false);
+  assert.equal(isExpired(s, 'kit-3', TODAY), false);
+});
+
+test('ackUntil: ล็อตใหม่เตือนล่วงหน้า 7 วัน', () => {
+  assert.equal(ackUntil(addDays(TODAY, 25), TODAY), addDays(TODAY, 18));
+  assert.equal(ackUntil(addDays(TODAY, 5), TODAY), null, 'เหลือไม่ถึง 7 วัน → เตือนเลย ไม่เลื่อน');
+  assert.equal(ackUntil(addDays(TODAY, 8), TODAY), addDays(TODAY, 1));
 });
 
 test('การกด "ไว้ทีหลัง" แบบเก่า (skipped) ไม่ปิดการเตือนหมดอายุ', () => {

@@ -1,5 +1,5 @@
 import { GROUPS, ITEMS, ORDER, HOTLINES, NEWS, SIGNALS, SOS_STEPS, IF_SCAMMED } from './data.js';
-import { percent, groupPercent, nextItem, expiringIds, doneCount, addDays, SNOOZE_DAYS } from './progress.js';
+import { percent, groupPercent, nextItem, expiringIds, doneCount, addDays, SNOOZE_DAYS, isExpired, ackUntil } from './progress.js';
 import { assess } from './scam.js';
 import { createStore, KEY } from './store.js';
 
@@ -30,9 +30,9 @@ function viewHome() {
 
   let nextBlock;
   if (it) {
-    const label = { todo: 'ต่อไป', skipped: 'ที่ข้ามไว้', expiring: 'ใกล้หมดอายุ ถึงเวลาเปลี่ยน' }[next.reason];
+    const label = { todo: 'ต่อไป', skipped: 'ที่ข้ามไว้', expiring: 'ใกล้หมดอายุ ถึงเวลาเปลี่ยน', expired: 'หมดอายุแล้ว ถึงเวลาเปลี่ยน' }[next.reason];
     nextBlock = `
-      <p class="small ${next.reason === 'expiring' ? 'warn' : ''}">${label}</p>
+      <p class="small ${next.reason === 'expiring' || next.reason === 'expired' ? 'warn' : ''}">${label}</p>
       <p class="lead">${esc(it.title)}</p>
       <p class="why">ราว ${it.minutes} นาที ${esc(it.why)}</p>
       <a class="btn mt20" href="#/item/${it.id}/0">เริ่ม</a>`;
@@ -103,12 +103,13 @@ function viewItem(id, stepStr) {
   const last = step === n - 1;
   const done = !!store.state.done[id];
   const expiring = isExpiring(id);
+  const snoozable = expiring && !isExpired(store.state, id, today());
 
   // ปุ่มรอง: ยังไม่ทำ = ไว้ทีหลัง (ข้าม), ใกล้หมดอายุ = เตือนอีก 7 วัน (เลื่อน),
   // ทำแล้ว = ปิด (หน้าแรก) — ข้อที่ทำแล้วไม่ถูกติดสถานะข้าม
   const secondary = !done
     ? `<button class="btn ghost" data-act="skip" data-id="${id}">ไว้ทีหลัง</button>`
-    : expiring
+    : snoozable
       ? `<button class="btn ghost" data-act="snooze" data-id="${id}">เตือนอีก ${SNOOZE_DAYS} วัน</button>`
       : '<a class="btn ghost" href="#/">ปิด</a>';
   const undoBtn = done ? `<button class="btn ghost" data-act="undo" data-id="${id}">ยังไม่ได้ทำ</button>` : '';
@@ -124,7 +125,7 @@ function viewItem(id, stepStr) {
     </div>
     <div class="spacer"></div>
     ${last
-      ? `<button class="btn" data-act="done" data-id="${id}">ทำแล้ว</button>${expiring ? secondary : ''}${undoBtn || secondary}`
+      ? `<button class="btn" data-act="done" data-id="${id}">ทำแล้ว</button>${snoozable ? secondary : ''}${undoBtn || secondary}`
       : `<a class="btn" href="#/item/${id}/${step + 1}">ต่อไป</a>
          ${step > 0 ? `<a class="btn ghost" href="#/item/${id}/${step - 1}">ย้อนกลับ</a>` : secondary}`}`;
 }
@@ -148,14 +149,21 @@ function collectAndValidate(it) {
     patch.dailySpend = Math.round(v);
   }
   if (it.input === 'contacts') {
-    const rows = [...document.querySelectorAll('#f-contacts [data-row]')].map(r => ({
-      name: r.querySelector('[data-k="name"]').value.trim(),
-      phone: r.querySelector('[data-k="phone"]').value.trim(),
-    })).filter(c => c.name || c.phone);
-    if (rows.some(c => !c.name || !c.phone)) return fail('ใส่ทั้งชื่อและเบอร์ในแถวที่กรอก', firstContact());
-    if (rows.some(c => c.phone.replace(/\D/g, '').length < 3)) return fail('เบอร์โทรดูไม่ถูกต้อง', firstContact());
-    if (rows.length < 2) return fail('ใส่อย่างน้อย 2 คน', firstContact());
-    patch.contacts = rows.slice(0, 5);
+    // เก็บ element ของแต่ละแถวไว้ด้วย เพื่อชี้ช่องที่ผิดจริง ไม่ใช่แถวแรกเสมอ
+    const rows = [...document.querySelectorAll('#f-contacts [data-row]')].map(r => {
+      const nameEl = r.querySelector('[data-k="name"]');
+      const phoneEl = r.querySelector('[data-k="phone"]');
+      return { name: nameEl.value.trim(), phone: phoneEl.value.trim(), nameEl, phoneEl };
+    }).filter(c => c.name || c.phone);
+    const missing = rows.find(c => !c.name || !c.phone);
+    if (missing) return fail('ใส่ทั้งชื่อและเบอร์ในแถวที่กรอก', missing.name ? missing.phoneEl : missing.nameEl);
+    const badPhone = rows.find(c => c.phone.replace(/\D/g, '').length < 3);
+    if (badPhone) return fail('เบอร์โทรดูไม่ถูกต้อง', badPhone.phoneEl);
+    if (rows.length < 2) {
+      const empty = [...document.querySelectorAll('#f-contacts [data-k="name"]')].find(i => !i.value.trim());
+      return fail('ใส่อย่างน้อย 2 คน', empty || firstContact());
+    }
+    patch.contacts = rows.slice(0, 5).map(({ name, phone }) => ({ name, phone }));
   }
   if (it.input === 'meetNear' || it.input === 'meetFar') {
     const v = document.getElementById('f-meet').value.trim();
@@ -181,7 +189,8 @@ function viewAll() {
     <div class="rows">${ITEMS.filter(i => i.group === g).map(it => {
       const d = !!s.done[it.id];
       const mark = d ? 'on' : s.skipped[it.id] ? 'skip' : '';
-      const end = exp.has(it.id) ? '<span class="end warn">ใกล้หมดอายุ</span>' : '';
+      const end = !exp.has(it.id) ? ''
+        : `<span class="end warn">${isExpired(s, it.id, today()) ? 'หมดอายุแล้ว' : 'ใกล้หมดอายุ'}</span>`;
       return `<a class="row" href="#/item/${it.id}/0"><span class="mark ${mark}" aria-hidden="true"></span>
         <span class="grow">${esc(it.title)}<span class="sr">${d ? ' (ทำแล้ว)' : s.skipped[it.id] ? ' (ข้ามไว้)' : ''}</span></span>${end}</a>`;
     }).join('')}</div>`).join('');
@@ -374,10 +383,11 @@ $app.addEventListener('click', e => {
       delete s.snoozed[id];
       if (it.expiry) {
         if (patch.expiry) s.expiry[id] = patch.expiry; else delete s.expiry[id];
+        // ล็อตใหม่ที่หมดอายุภายใน 30 วันอยู่แล้ว: รับทราบไว้ แล้วเตือนอีกที 7 วันก่อนหมดอายุ
+        const until = patch.expiry && expiringIds(s, today()).includes(id) && ackUntil(patch.expiry, today());
+        if (until) s.snoozed[id] = until;
       }
     });
-    // ล็อตใหม่ที่หมดอายุภายใน 30 วันอยู่แล้ว: รับทราบแล้ว เตือนอีกทีวันที่หมดอายุจริง
-    if (isExpiring(id)) store.update(s => { s.snoozed[id] = s.expiry[id]; });
     goHome();
   } else if (act === 'snooze') {
     store.update(s => { s.snoozed[id] = addDays(today(), SNOOZE_DAYS); });
@@ -474,6 +484,7 @@ $app.addEventListener('input', e => {
   const errEl = document.getElementById('f-err');
   if (errEl) errEl.textContent = '';
   e.target.removeAttribute?.('aria-invalid');
+  e.target.removeAttribute?.('aria-describedby');
   if (e.target.id === 'f-spend') {
     const v = Number(e.target.value);
     document.getElementById('f-goal').textContent = v > 0 ? `เป้าเงินสด ${baht(v * 3)} บาท` : '';

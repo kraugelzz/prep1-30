@@ -138,6 +138,45 @@ const scenarios = {
     check('หน้าแรกไม่เตือนซ้ำ', text('.lead') === 'พร้อมแล้ว', text('.lead'));
   },
 
+  async 'ของที่หมดอายุแล้ว: ไม่มีปุ่มเลื่อน และบอกว่าหมดอายุแล้ว'() {
+    await boot(seed({ done: allDone(), expiry: { 'kit-1': isoIn(-2) } }));
+    check('หน้าแรกบอกหมดอายุแล้ว', text('.small.warn') === 'หมดอายุแล้ว ถึงเวลาเปลี่ยน', text('.small.warn'));
+    await go('#/item/kit-1/2');
+    check('ไม่มีปุ่มเตือนอีก 7 วัน', !q('[data-act="snooze"]'));
+    check('ยังมีปุ่มยังไม่ได้ทำ', !!q('[data-act="undo"]'));
+  },
+
+  async 'ล็อตใหม่: เตือนล่วงหน้า 7 วัน'() {
+    await boot(seed({ done: allDone(), expiry: { 'kit-3': isoIn(3) } }), '#/item/kit-3/2');
+    q('#f-expiry').value = isoIn(25);
+    click('[data-act="done"]');
+    await wait(100);
+    check('ยังไม่เตือนตอนนี้', text('.lead') === 'พร้อมแล้ว', text('.lead'));
+    const st = JSON.parse(localStorage.getItem(KEY));
+    check('เลื่อนไว้ถึง 7 วันก่อนหมดอายุ', st.snoozed['kit-3'] === isoIn(18), st.snoozed['kit-3']);
+    await go('#/item/kit-3/2');
+    q('#f-expiry').value = isoIn(5);
+    click('[data-act="done"]');
+    await wait(100);
+    check('ล็อตที่เหลือไม่ถึง 7 วัน เตือนทันที', text('.lead') === 'ยาประจำตัว 7 วัน และยาสามัญ', text('.lead'));
+  },
+
+  async 'รายชื่อ: ชี้แถวที่ผิดจริง'() {
+    await boot(null, '#/item/contact-1/1');
+    const rows = doc().querySelectorAll('#f-contacts [data-row]');
+    rows[0].querySelector('[data-k=name]').value = 'แม่';
+    rows[0].querySelector('[data-k=phone]').value = '0812345678';
+    rows[1].querySelector('[data-k=name]').value = 'พ่อ';
+    click('[data-act="done"]');
+    await wait(30);
+    const phone2 = rows[1].querySelector('[data-k=phone]');
+    check('โฟกัสช่องเบอร์ของแถว 2', doc().activeElement === phone2);
+    check('แถว 1 ไม่ถูกทำเครื่องหมายผิด', !rows[0].querySelector('[aria-invalid]'));
+    phone2.value = '0';
+    phone2.dispatchEvent(new Event('input', { bubbles: true }));
+    check('พิมพ์แล้ว aria-describedby หายด้วย', !phone2.hasAttribute('aria-describedby') && !phone2.hasAttribute('aria-invalid'));
+  },
+
   async 'ข้อที่ทำแล้วไม่ถูกติดสถานะข้าม'() {
     await boot(seed({ done: { 'cyber-1': '2026-01-01' } }), '#/item/cyber-1/0');
     check('ปุ่มรองคือ ปิด', text('.btn.ghost') === 'ปิด', text('.btn.ghost'));

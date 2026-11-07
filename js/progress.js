@@ -47,10 +47,25 @@ export function addDays(today, n) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// เลยวันหมดอายุแล้ว (ไม่ใช่แค่ใกล้)
+export function isExpired(state, id, today) {
+  const exp = state.expiry[id] && parseDay(state.expiry[id]);
+  return !!exp && exp.getTime() <= today.getTime();
+}
+
+// ล็อตใหม่ที่ใส่ตอนกด "ทำแล้ว": รับทราบไว้จนถึง SNOOZE_DAYS วันก่อนหมดอายุ
+// ถ้าเหลือไม่ถึงนั้น คืน null = เตือนเลย
+export function ackUntil(expiry, today) {
+  const exp = parseDay(expiry);
+  if (!exp) return null;
+  const until = addDays(exp, -SNOOZE_DAYS);
+  return parseDay(until).getTime() > today.getTime() ? until : null;
+}
+
 // id ที่ไม่อยู่ใน order ไม่ถูกเสนอเลย
 export function nextItem(state, order, today) {
   const exp = expiringIds(state, today).find(id => order.includes(id) && !isSnoozed(state, id, today));
-  if (exp) return { id: exp, reason: 'expiring' };
+  if (exp) return { id: exp, reason: isExpired(state, exp, today) ? 'expired' : 'expiring' };
   const todo = order.find(id => !state.done[id] && !state.skipped[id]);
   if (todo) return { id: todo, reason: 'todo' };
   const skipped = order.find(id => !state.done[id]);

@@ -38,10 +38,12 @@ function pick(obj, known, keep) {
 }
 
 function normalize(d, known) {
+  const done = pick(d.done, known, v => typeof v === 'string' && v.length > 0);
   return {
     ...defaultState(),
-    done: pick(d.done, known, v => typeof v === 'string' && v.length > 0),
-    skipped: pick(d.skipped, known, v => v === true),
+    done,
+    // ข้อที่ทำแล้วไม่ควรมีสถานะข้ามค้าง (ข้อมูลจากเวอร์ชันเก่า)
+    skipped: Object.fromEntries(Object.entries(pick(d.skipped, known, v => v === true)).filter(([id]) => !done[id])),
     snoozed: isObj(d.snoozed) ? pick(d.snoozed, known, v => typeof v === 'string' && DAY_RE.test(v)) : {},
     expiry: pick(d.expiry, known, v => typeof v === 'string' && DAY_RE.test(v)),
     dailySpend: typeof d.dailySpend === 'number' && d.dailySpend > 0 ? d.dailySpend : null,
