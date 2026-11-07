@@ -65,6 +65,53 @@ test('import ไฟล์เสียหรือผิดเวอร์ชั�
   }
 });
 
+test('เครื่องพื้นที่เต็ม (อ่านได้ เขียนไม่ได้) → ยังเห็นข้อมูลเดิม', () => {
+  const st = fakeStorage();
+  createStore(st).update(s => { s.done['cyber-1'] = '2026-11-01'; });
+  const full = { getItem: st.getItem, setItem() { throw new Error('QuotaExceededError'); }, removeItem: st.removeItem };
+  const b = createStore(full);
+  assert.equal(b.persistent, false);
+  assert.equal(b.state.done['cyber-1'], '2026-11-01');
+});
+
+test('import ทิ้ง id ที่ไม่รู้จักและค่าที่ผิดรูปแบบ', () => {
+  const a = createStore(fakeStorage(), { knownIds: ['cyber-1', 'kit-1'] });
+  const r = a.importJSON(JSON.stringify({
+    version: 1,
+    done: { 'cyber-1': '2026-11-01', 'kit-99': 'x', 'kit-1': 5 },
+    skipped: { 'kit-99': true, 'cyber-1': 'yes' },
+    expiry: { 'kit-99': '2026-11-10', 'kit-1': 'พรุ่งนี้' },
+    contacts: [{ name: 'แม่', phone: '0812345678' }, { name: 'ว่าง' }],
+    meetNear: { x: 1 },
+  }));
+  assert.deepEqual(r, { ok: true });
+  assert.deepEqual(a.state.done, { 'cyber-1': '2026-11-01' });
+  assert.deepEqual(a.state.skipped, {});
+  assert.deepEqual(a.state.expiry, {});
+  assert.deepEqual(a.state.contacts, [{ name: 'แม่', phone: '0812345678' }]);
+  assert.equal(a.state.meetNear, '');
+});
+
+test('ข้อมูลใน storage ที่มี id แปลกก็ถูกกรองตอนเปิดแอป', () => {
+  const st = fakeStorage();
+  st.setItem(KEY, JSON.stringify({ version: 1, done: { 'kit-99': 'x' }, skipped: {}, expiry: { 'kit-99': '2026-11-10' }, contacts: [] }));
+  const a = createStore(st, { knownIds: ['kit-1'] });
+  assert.deepEqual(a.state.done, {});
+  assert.deepEqual(a.state.expiry, {});
+});
+
+test('reload อ่านค่าที่แท็บอื่นบันทึก', () => {
+  const st = fakeStorage();
+  const tabA = createStore(st);
+  const tabB = createStore(st);
+  tabA.update(s => { s.done['cyber-1'] = '2026-11-07'; });
+  tabB.reload();
+  tabB.update(s => { s.sosChecked = [1]; });
+  const fresh = createStore(st);
+  assert.equal(fresh.state.done['cyber-1'], '2026-11-07');
+  assert.deepEqual(fresh.state.sosChecked, [1]);
+});
+
 test('reset ล้างกลับเป็นค่าเริ่มต้น', () => {
   const st = fakeStorage();
   const a = createStore(st);

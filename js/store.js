@@ -17,6 +17,7 @@ export function defaultState() {
 }
 
 const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function validate(d) {
   if (!isObj(d)) return 'ไม่ใช่ไฟล์สำรองของพร้อม 72';
@@ -26,42 +27,66 @@ function validate(d) {
   return null;
 }
 
-function normalize(d) {
-  const base = defaultState();
+// เก็บเฉพาะ id ที่แอปรู้จัก และค่าที่มีรูปแบบถูกต้อง
+function pick(obj, known, keep) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if ((!known || known.has(k)) && keep(v)) out[k] = v;
+  }
+  return out;
+}
+
+function normalize(d, known) {
   return {
-    ...base,
-    done: { ...d.done },
-    skipped: { ...d.skipped },
-    expiry: { ...d.expiry },
+    ...defaultState(),
+    done: pick(d.done, known, v => typeof v === 'string' && v.length > 0),
+    skipped: pick(d.skipped, known, v => v === true),
+    expiry: pick(d.expiry, known, v => typeof v === 'string' && DAY_RE.test(v)),
     dailySpend: typeof d.dailySpend === 'number' && d.dailySpend > 0 ? d.dailySpend : null,
     contacts: d.contacts
       .filter(isObj)
       .slice(0, 5)
-      .map(c => ({ name: String(c.name ?? ''), phone: String(c.phone ?? '') })),
-    meetNear: String(d.meetNear ?? ''),
-    meetFar: String(d.meetFar ?? ''),
+      .map(c => ({ name: String(c.name ?? ''), phone: String(c.phone ?? '') }))
+      .filter(c => c.name && c.phone),
+    meetNear: typeof d.meetNear === 'string' ? d.meetNear : '',
+    meetFar: typeof d.meetFar === 'string' ? d.meetFar : '',
     sosChecked: Array.isArray(d.sosChecked) ? d.sosChecked.filter(Number.isInteger) : [],
   };
 }
 
-export function createStore(storage) {
-  let persistent = false;
-  let state = defaultState();
+/**
+ * @param storage  localStorage หรือของปลอมสำหรับทดสอบ (null = ใช้หน่วยความจำ)
+ * @param opts.knownIds  id ที่แอปรู้จัก — id อื่นในข้อมูลจะถูกทิ้ง
+ */
+export function createStore(storage, { knownIds } = {}) {
+  const known = knownIds ? new Set(knownIds) : null;
 
-  if (storage) {
+  // อ่านกับเขียนแยกกัน: เครื่องที่พื้นที่เต็มยังอ่านข้อมูลเดิมได้ แม้จะบันทึกเพิ่มไม่ได้
+  function load() {
+    if (!storage) return defaultState();
     try {
       const raw = storage.getItem(KEY);
-      storage.setItem(KEY + '.probe', '1');
-      storage.removeItem(KEY + '.probe');
-      persistent = true;
-      if (raw) {
-        const d = JSON.parse(raw);
-        if (!validate(d)) state = normalize(d);
-      }
+      if (!raw) return defaultState();
+      const d = JSON.parse(raw);
+      return validate(d) ? defaultState() : normalize(d, known);
     } catch {
-      // storage ถูกบล็อก หรือข้อมูลเก่าเสีย — ใช้ค่าเริ่มต้น
+      return defaultState();
     }
   }
+
+  function canWrite() {
+    if (!storage) return false;
+    try {
+      storage.setItem(KEY + '.probe', '1');
+      storage.removeItem(KEY + '.probe');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  let state = load();
+  let persistent = canWrite();
 
   function save() {
     if (!persistent) return;
@@ -79,6 +104,10 @@ export function createStore(storage) {
       fn(state);
       save();
     },
+    // โหลดใหม่จาก storage (เมื่ออีกแท็บหนึ่งบันทึก) เพื่อไม่ให้เขียนทับกัน
+    reload() {
+      state = load();
+    },
     reset() {
       state = defaultState();
       if (persistent) {
@@ -93,7 +122,7 @@ export function createStore(storage) {
       try { d = JSON.parse(text); } catch { return { ok: false, error: 'ไฟล์นี้ใช้ไม่ได้ ลองไฟล์สำรองอื่น' }; }
       const err = validate(d);
       if (err) return { ok: false, error: err };
-      state = normalize(d);
+      state = normalize(d, known);
       save();
       return { ok: true };
     },

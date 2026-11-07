@@ -1,6 +1,7 @@
 // เก็บทุกไฟล์ไว้ในเครื่อง เปิดได้แม้ไม่มีเน็ต
-// เปลี่ยน VERSION ทุกครั้งที่แก้ไฟล์ใดๆ เพื่อให้เครื่องผู้ใช้โหลดของใหม่
-const VERSION = 'prep72-v1';
+// VERSION มาจาก hash ของไฟล์ทั้งหมด — แก้ไฟล์แล้วรัน `npm run stamp`
+// (npm test จะล้มถ้าลืม) เครื่องผู้ใช้จึงได้ของใหม่เสมอ
+const VERSION = 'prep72-cdccbd55';
 
 const FILES = [
   './',
@@ -23,7 +24,8 @@ const FILES = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)));
+  // cache: 'reload' = ข้าม HTTP cache ของเบราว์เซอร์ ไม่งั้นอาจได้ไฟล์เก่าปนไฟล์ใหม่
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' })))));
 });
 
 self.addEventListener('activate', e => {

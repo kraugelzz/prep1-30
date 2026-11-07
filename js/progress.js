@@ -2,10 +2,13 @@
 
 const DAY = 864e5;
 
+export function doneCount(state, items) {
+  return items.filter(i => state.done[i.id]).length;
+}
+
 export function percent(state, items) {
   if (!items.length) return 0;
-  const done = items.filter(i => state.done[i.id]).length;
-  return Math.round((done / items.length) * 100);
+  return Math.round((doneCount(state, items) / items.length) * 100);
 }
 
 export function groupPercent(state, items, group) {
@@ -28,9 +31,11 @@ export function expiringIds(state, today, days = 30) {
     .map(([id]) => id);
 }
 
+// ข้อที่ข้ามไว้จะไม่ถูกเสนอเป็น "ใกล้หมดอายุ" ซ้ำ จนกว่าจะกด "ทำแล้ว" ใหม่
+// id ที่ไม่อยู่ใน order ไม่ถูกเสนอเลย
 export function nextItem(state, order, today) {
-  const exp = expiringIds(state, today);
-  if (exp.length) return { id: exp[0], reason: 'expiring' };
+  const exp = expiringIds(state, today).find(id => order.includes(id) && !state.skipped[id]);
+  if (exp) return { id: exp, reason: 'expiring' };
   const todo = order.find(id => !state.done[id] && !state.skipped[id]);
   if (todo) return { id: todo, reason: 'todo' };
   const skipped = order.find(id => !state.done[id]);

@@ -27,6 +27,8 @@ npm test                         # unit test (Node 20+)
 py -m http.server 8172           # เปิดดูที่ http://localhost:8172
 ```
 
-แก้ไฟล์ใดๆ แล้วต้องเปลี่ยน `VERSION` ใน `sw.js` เครื่องผู้ใช้ถึงจะได้ของใหม่
+แก้ไฟล์ใดๆ แล้วรัน `npm run stamp` เพื่ออัปเดต `VERSION` ใน `sw.js` จาก hash ของไฟล์
+(`npm test` จะล้มถ้าลืม) เครื่องผู้ใช้ถึงจะได้ของใหม่
+ถ้าเพิ่มไฟล์ใหม่ ให้ใส่ชื่อใน `FILES` ของ `sw.js` ด้วย
 
 ฟอนต์ IBM Plex Sans Thai ใช้สัญญาอนุญาต SIL Open Font License (`fonts/OFL.txt`)

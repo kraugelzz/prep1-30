@@ -1,7 +1,7 @@
 import { GROUPS, ITEMS, ORDER, HOTLINES, NEWS, SIGNALS, SOS_STEPS, IF_SCAMMED } from './data.js';
-import { percent, groupPercent, nextItem, expiringIds } from './progress.js';
+import { percent, groupPercent, nextItem, expiringIds, doneCount } from './progress.js';
 import { assess } from './scam.js';
-import { createStore } from './store.js';
+import { createStore, KEY } from './store.js';
 
 const $app = document.getElementById('app');
 const byId = Object.fromEntries(ITEMS.map(i => [i.id, i]));
@@ -9,9 +9,10 @@ const byId = Object.fromEntries(ITEMS.map(i => [i.id, i]));
 function safeLocalStorage() {
   try { return window.localStorage; } catch { return null; }
 }
-const store = createStore(safeLocalStorage());
+const store = createStore(safeLocalStorage(), { knownIds: ITEMS.map(i => i.id) });
 
-const ui = { offlineReady: null, updateReady: null, scamPicked: [], showScammed: false };
+// lastPct: ค่าที่เส้นความคืบหน้าแสดงอยู่ เพื่อให้เส้นขยับจากค่าเดิมไปค่าใหม่
+const ui = { offlineReady: null, updateReady: null, scamPicked: [], showScammed: false, lastPct: null };
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const today = () => new Date();
@@ -23,12 +24,12 @@ const telHref = n => `tel:${String(n).replace(/[^\d+]/g, '')}`;
 function viewHome() {
   const s = store.state;
   const pct = percent(s, ITEMS);
-  const doneCount = ITEMS.filter(i => s.done[i.id]).length;
+  const done = doneCount(s, ITEMS);
   const next = nextItem(s, ORDER, today());
+  const it = next && byId[next.id];
 
   let nextBlock;
-  if (next) {
-    const it = byId[next.id];
+  if (it) {
     const label = { todo: 'ต่อไป', skipped: 'ที่ข้ามไว้', expiring: 'ใกล้หมดอายุ ถึงเวลาเปลี่ยน' }[next.reason];
     nextBlock = `
       <p class="small ${next.reason === 'expiring' ? 'warn' : ''}">${label}</p>
@@ -52,7 +53,7 @@ function viewHome() {
     ${notices.join('')}
     <p class="big" aria-label="พร้อมแล้ว ${pct} เปอร์เซ็นต์">${pct}%</p>
     <div class="bar" aria-hidden="true"><span data-pct="${pct}"></span></div>
-    <p class="small">ทำแล้ว ${doneCount} จาก ${ITEMS.length}</p>
+    <p class="small">ทำแล้ว ${done} จาก ${ITEMS.length}</p>
     <div class="spacer"></div>
     ${nextBlock}
     <nav class="foot" aria-label="เมนู">
@@ -101,6 +102,15 @@ function viewItem(id, stepStr) {
   const step = Math.min(Math.max(parseInt(stepStr, 10) || 0, 0), n - 1);
   const last = step === n - 1;
   const done = !!store.state.done[id];
+  const expiring = isExpiring(id);
+
+  // ปุ่มรอง: ข้อที่ยังไม่ทำ = ไว้ทีหลัง, ใกล้หมดอายุ = ไว้ทีหลัง (เลิกเตือน),
+  // ทำแล้ว = กลับ (หน้าแรก) หรือ ยังไม่ได้ทำ (หน้าสุดท้าย) — ไม่ติดสถานะข้ามให้ข้อที่ทำแล้ว
+  const skipBtn = `<button class="btn ghost" data-act="skip" data-id="${id}">ไว้ทีหลัง</button>`;
+  const firstAlt = !done || expiring ? skipBtn : '<a class="btn ghost" href="#/all">กลับ</a>';
+  const lastAlt = !done ? skipBtn
+    : expiring ? skipBtn
+      : `<button class="btn ghost" data-act="undo" data-id="${id}">ยังไม่ได้ทำ</button>`;
 
   return `
     <div class="top"><a href="#/">ปิด</a><span class="small">${esc(GROUPS[it.group])}</span></div>
@@ -113,14 +123,13 @@ function viewItem(id, stepStr) {
     </div>
     <div class="spacer"></div>
     ${last
-      ? `<button class="btn" data-act="done" data-id="${id}">ทำแล้ว</button>
-         ${done
-           ? `<button class="btn ghost" data-act="undo" data-id="${id}">ยังไม่ได้ทำ</button>`
-           : `<button class="btn ghost" data-act="skip" data-id="${id}">ไว้ทีหลัง</button>`}`
+      ? `<button class="btn" data-act="done" data-id="${id}">ทำแล้ว</button>${lastAlt}`
       : `<a class="btn" href="#/item/${id}/${step + 1}">ต่อไป</a>
-         ${step > 0
-           ? `<a class="btn ghost" href="#/item/${id}/${step - 1}">ย้อนกลับ</a>`
-           : `<button class="btn ghost" data-act="skip" data-id="${id}">ไว้ทีหลัง</button>`}`}`;
+         ${step > 0 ? `<a class="btn ghost" href="#/item/${id}/${step - 1}">ย้อนกลับ</a>` : firstAlt}`}`;
+}
+
+function isExpiring(id) {
+  return expiringIds(store.state, today()).includes(id);
 }
 
 function collectAndValidate(it) {
@@ -149,6 +158,10 @@ function collectAndValidate(it) {
   }
   if (it.expiry) {
     patch.expiry = document.getElementById('f-expiry').value || null;
+    // เปลี่ยนของแล้วต้องใส่วันของล็อตใหม่ ไม่งั้นจะถูกเตือนข้อเดิมวนไม่จบ
+    if (patch.expiry && patch.expiry === store.state.expiry[it.id] && isExpiring(it.id)) {
+      return fail('ใส่วันหมดอายุของล็อตใหม่ หรือเว้นว่างไว้');
+    }
   }
   return patch;
 }
@@ -174,8 +187,8 @@ function viewAll() {
     <h2>ข้อมูลของคุณ (อยู่ในเครื่องนี้เท่านั้น)</h2>
     <div class="rows">
       <button class="row" data-act="export"><span class="grow">สำรองข้อมูลเป็นไฟล์</span></button>
-      <label class="row"><span class="grow">นำข้อมูลกลับจากไฟล์</span>
-        <input type="file" accept="application/json,.json" data-act="import" hidden></label>
+      <button class="row" data-act="pick-import"><span class="grow">นำข้อมูลกลับจากไฟล์</span></button>
+      <input type="file" accept="application/json,.json" id="f-import" data-act="import" hidden>
       <a class="row" href="#/print"><span class="grow">พิมพ์สรุป</span></a>
       <button class="row" data-act="reset"><span class="grow warn">ล้างข้อมูลทั้งหมด</span></button>
     </div>
@@ -203,7 +216,7 @@ function viewCheck() {
     </div>
     <div class="spacer"></div>
     <button class="btn ghost" data-act="toggle-scammed" aria-expanded="${ui.showScammed}">ถ้าโดนหลอกไปแล้ว</button>
-    ${ui.showScammed ? `<ol class="steps">${IF_SCAMMED.map((t, i) => `<li><span class="n">${i + 1}</span><span>${esc(t)}</span></li>`).join('')}</ol>
+    ${ui.showScammed ? `${numberedList(IF_SCAMMED)}
       <a class="btn mt12" href="tel:1441">โทร 1441</a>` : ''}
     <p class="small mt12">ตรวจในเครื่องนี้ ไม่มีข้อมูลส่งออกไปไหน</p>`;
 }
@@ -238,6 +251,10 @@ function personalBlock() {
     <h2>จุดนัดพบ</h2>${meet('ใกล้บ้าน', s.meetNear, 'contact-2')}${meet('นอกพื้นที่', s.meetFar, 'contact-3')}`;
 }
 
+function numberedList(lines) {
+  return `<ol class="steps">${lines.map((t, i) => `<li><span class="n">${i + 1}</span><span>${esc(t)}</span></li>`).join('')}</ol>`;
+}
+
 function hotlineList() {
   return HOTLINES.map(h => `<a class="tel" href="tel:${h.num}"><b>${h.num}</b><span>${esc(h.label)}</span></a>`).join('');
 }
@@ -264,7 +281,7 @@ function viewPrint() {
     <h1 class="mt16" tabindex="-1">พร้อม 72 สรุปฉุกเฉิน</h1>
     <p class="small">พิมพ์เมื่อ ${isoDay(today())}</p>
     <h2>เมื่อเกิดเหตุ</h2>
-    <ol class="steps">${SOS_STEPS.map((t, i) => `<li><span class="n">${i + 1}</span><span>${esc(t)}</span></li>`).join('')}</ol>
+    ${numberedList(SOS_STEPS)}
     ${personalBlock()}
     ${s.dailySpend ? `<h2>เงินสดสำรอง</h2><p>เป้า ${baht(s.dailySpend * 3)} บาท (แบงก์ย่อย)</p>` : ''}
     <h2>เบอร์ฉุกเฉิน</h2>
@@ -288,15 +305,42 @@ function route() {
   }
 }
 
+// ปุ่มที่กดอยู่ระบุได้ด้วย data-act + data-id/data-i — ใช้หาปุ่มเดิมหลัง render ใหม่
+function focusKey(el) {
+  if (!el || !$app.contains(el) || !el.dataset || !el.dataset.act) return null;
+  return `[data-act="${el.dataset.act}"]` +
+    (el.dataset.id ? `[data-id="${el.dataset.id}"]` : '') +
+    (el.dataset.i ? `[data-i="${el.dataset.i}"]` : '');
+}
+
+function setBar(el, pct) {
+  el.style.transform = `scaleX(${pct / 100})`;
+}
+
 let lastHash = null;
 function render() {
+  const keep = focusKey(document.activeElement);
   $app.innerHTML = route();
-  $app.querySelectorAll("[data-pct]").forEach(el => { el.style.transform = `scaleX(${Number(el.dataset.pct) / 100})`; });
+
+  // เส้นความคืบหน้า: วาดที่ค่าเดิมก่อน แล้วค่อยขยับไปค่าใหม่ในเฟรมถัดไป ให้เห็นว่าเพิ่มขึ้น
+  const bar = $app.querySelector('[data-pct]');
+  if (bar) {
+    const pct = Number(bar.dataset.pct);
+    if (ui.lastPct !== null && ui.lastPct !== pct) {
+      setBar(bar, ui.lastPct);
+      void bar.offsetWidth; // บังคับให้เบราว์เซอร์คำนวณค่าเดิมก่อน transition จึงทำงาน (ไม่พึ่ง rAF ที่หยุดตอนแท็บอยู่เบื้องหลัง)
+    }
+    setBar(bar, pct);
+    ui.lastPct = pct;
+  }
+
   if (location.hash !== lastHash) {
     lastHash = location.hash;
     window.scrollTo(0, 0);
     const h = $app.querySelector('h1[tabindex]');
     (h || $app).focus({ preventScroll: true });
+  } else if (keep) {
+    $app.querySelector(keep)?.focus({ preventScroll: true });
   }
 }
 
@@ -326,7 +370,7 @@ $app.addEventListener('click', e => {
     });
     goHome();
   } else if (act === 'undo') {
-    store.update(s => { delete s.done[id]; });
+    store.update(s => { delete s.done[id]; delete s.skipped[id]; });
     goHome();
   } else if (act === 'skip') {
     store.update(s => { s.skipped[id] = true; });
@@ -350,14 +394,9 @@ $app.addEventListener('click', e => {
     store.update(s => { s.sosChecked = []; });
     render();
   } else if (act === 'export') {
-    const blob = new Blob([store.exportJSON()], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `prep72-${isoDay(today())}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    exportBackup();
+  } else if (act === 'pick-import') {
+    document.getElementById('f-import').click();
   } else if (act === 'reset') {
     if (confirm('ล้างความคืบหน้า รายชื่อ และจุดนัดพบทั้งหมดในเครื่องนี้?')) {
       store.reset();
@@ -370,13 +409,50 @@ $app.addEventListener('click', e => {
   }
 });
 
+const isStandalone = () =>
+  window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+// แอปที่ติดตั้งบน iPhone: ลิงก์ดาวน์โหลด blob จะเปิดไฟล์ค้างโดยไม่มีปุ่มกลับ จึงใช้แผ่นแชร์แทน
+async function exportBackup() {
+  const name = `prep72-${isoDay(today())}.json`;
+  const blob = new Blob([store.exportJSON()], { type: 'application/json' });
+  if (isStandalone() && typeof File === 'function' && navigator.canShare) {
+    const file = new File([blob], name, { type: 'application/json' });
+    if (navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file] });
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+      }
+    }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 $app.addEventListener('change', async e => {
   if (e.target.dataset.act !== 'import') return;
-  const file = e.target.files[0];
+  const input = e.target;
+  const file = input.files[0];
+  input.value = ''; // ให้เลือกไฟล์เดิมซ้ำได้หลังแก้ไฟล์
   if (!file) return;
   const r = store.importJSON(await file.text());
   if (r.ok) goHome();
   else document.getElementById('f-err').textContent = `${r.error} ข้อมูลเดิมยังอยู่ครบ`;
+});
+
+// อีกแท็บหรือแอปที่ติดตั้งบันทึก → โหลดค่าใหม่ ไม่ให้เขียนทับกัน
+window.addEventListener('storage', e => {
+  if (e.key !== KEY && e.key !== null) return;
+  store.reload();
+  // ไม่ render ทับฟอร์มที่กำลังกรอกอยู่ ค่าใหม่จะแสดงเมื่อเปลี่ยนหน้า
+  if (!location.hash.startsWith('#/item/')) render();
 });
 
 $app.addEventListener('input', e => {

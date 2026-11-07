@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ITEMS, ORDER } from '../js/data.js';
-import { percent, groupPercent, expiringIds, nextItem } from '../js/progress.js';
+import { percent, groupPercent, expiringIds, nextItem, doneCount } from '../js/progress.js';
 import { defaultState } from '../js/store.js';
 
 const TODAY = new Date('2026-11-07T12:00:00');
@@ -62,6 +62,27 @@ test('หมดอายุอีก 60 วัน → ยังไม่เต�
   s.expiry['kit-1'] = plusDays(60);
   assert.deepEqual(expiringIds(s, TODAY), []);
   assert.equal(nextItem(s, ORDER, TODAY), null);
+});
+
+test('ข้อใกล้หมดอายุที่กด "ไว้ทีหลัง" ไม่ถูกเสนอซ้ำ', () => {
+  const s = defaultState();
+  s.done = doneAll();
+  s.expiry['kit-1'] = plusDays(10);
+  s.skipped['kit-1'] = true;
+  assert.equal(nextItem(s, ORDER, TODAY), null);
+});
+
+test('id ที่ไม่รู้จักไม่ถูกเสนอเป็นข้อต่อไป', () => {
+  const s = defaultState();
+  s.done = { ...doneAll(), 'kit-99': 'x' };
+  s.expiry['kit-99'] = plusDays(3);
+  assert.equal(nextItem(s, ORDER, TODAY), null);
+});
+
+test('doneCount นับเฉพาะข้อที่มีอยู่จริง', () => {
+  const s = defaultState();
+  s.done = { 'cyber-1': 'x', 'kit-99': 'x' };
+  assert.equal(doneCount(s, ITEMS), 1);
 });
 
 test('ข้อที่ยังไม่ทำ ไม่ถูกนับว่าใกล้หมดอายุ', () => {
