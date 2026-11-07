@@ -29,3 +29,9 @@ test('สัญญาณหลอก 6 ข้อ, ขั้นเกิดเห
   assert.equal(SOS_STEPS.length, 5);
   assert.ok(HOTLINES.length >= 7);
 });
+
+test('ข้อแรกเป็นข้อง่ายที่เสร็จเร็ว', () => {
+  const first = ITEMS.find(i => i.id === ORDER[0]);
+  assert.ok(first.minutes <= 3, `${first.id} ใช้ ${first.minutes} นาที`);
+  assert.equal(first.group === 'cyber' && first.id === 'cyber-1', false);
+});

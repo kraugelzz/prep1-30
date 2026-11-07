@@ -1,5 +1,5 @@
 import { GROUPS, ITEMS, ORDER, HOTLINES, NEWS, SIGNALS, SOS_STEPS, IF_SCAMMED } from './data.js';
-import { percent, groupPercent, nextItem, expiringIds, doneCount, addDays, SNOOZE_DAYS, isExpired, ackUntil } from './progress.js';
+import { percent, groupPercent, nextItem, expiringIds, doneCount, addDays, SNOOZE_DAYS, isExpired, ackUntil, remainingMinutes, formatMinutes } from './progress.js';
 import { assess } from './scam.js';
 import { createStore, KEY } from './store.js';
 
@@ -48,17 +48,47 @@ function viewHome() {
   if (ui.offlineReady === false) notices.push('<p class="notice">ยังใช้ออฟไลน์ไม่ได้ เปิดผ่านลิงก์ https อีกครั้ง</p>');
   if (ui.updateReady) notices.push('<button class="notice" data-act="update">มีเวอร์ชันใหม่ แตะเพื่อโหลด</button>');
 
+  const left = remainingMinutes(s, ITEMS);
+
   return `
-    <div class="top"><h1 class="sr" tabindex="-1">พร้อม 72 ความพร้อมของคุณ</h1><span></span><a class="sos" href="#/sos">เกิดเหตุ</a></div>
+    <div class="top"><h1 class="brand" tabindex="-1">พร้อม 72</h1><a class="sos" href="#/sos">ฉุกเฉิน</a></div>
     ${notices.join('')}
+    <p class="purpose">เตรียมตัวให้อยู่ได้ 72 ชั่วโมงเมื่อเกิดเหตุฉุกเฉิน ทีละขั้นเล็กๆ 30 ขั้น</p>
+    <p class="promise">ฟรี ไม่ต้องสมัคร ข้อมูลอยู่ในเครื่องนี้เท่านั้น</p>
     <p class="big">${pct}%</p>
     <div class="bar" aria-hidden="true"><span data-pct="${pct}"></span></div>
-    <p class="small">ทำแล้ว ${done} จาก ${ITEMS.length}</p>
+    <p class="small">ทำแล้ว ${done} จาก ${ITEMS.length}${left ? `<span class="total"> เหลือราว ${formatMinutes(left)}</span>` : ''}</p>
     <div class="spacer"></div>
     ${nextBlock}
+    <div class="quick-call" aria-label="โทรด่วน">
+      <a href="tel:191">โทร 191 ตำรวจ</a><a href="tel:1669">โทร 1669 รถพยาบาล</a>
+    </div>
     <nav class="foot" aria-label="เมนู">
-      <a href="#/all">ทั้งหมด</a><a href="#/check">ตรวจข้อความ</a><a href="#/contacts">เบอร์ฉุกเฉิน</a>
+      <a href="#/all">ทั้งหมด</a><a href="#/check">ตรวจข้อความ</a><a href="#/contacts">เบอร์ฉุกเฉิน</a><a href="#/about">เกี่ยวกับ</a>
     </nav>`;
+}
+
+// ───────── เกี่ยวกับแอป ─────────
+const SOURCES = [
+  { name: 'ธนาคารแห่งประเทศไทย: มาตรการให้ธนาคารเลิกส่งลิงก์ทาง SMS และอีเมล (2566)', url: 'https://www.bot.or.th/th/news-and-media/news/news-20230309.html' },
+  { name: 'ศูนย์ AOC สายด่วน 1441 แจ้งถูกหลอกออนไลน์และอายัดบัญชี', url: 'https://thestandard.co/aoc-1441-prevent-and-suppress-online-threats/' },
+  { name: 'ศูนย์คุ้มครองผู้ใช้บริการทางการเงิน (ศคง.) 1213', url: 'https://www.bot.or.th/th/our-roles/financial-institutions/market-conduct-supervision.html' },
+  { name: 'กรมป้องกันและบรรเทาสาธารณภัย (ปภ.) 1784', url: 'https://www.disaster.go.th' },
+  { name: 'คำแนะนำสำรองของ 72 ชั่วโมงของหลายประเทศ (Newsweek)', url: 'https://www.newsweek.com/map-shows-countries-urging-residents-to-stockpile-food-12629524' },
+];
+
+function viewAbout() {
+  return `
+    <div class="top"><a href="#/">ปิด</a><span></span></div>
+    <h1 class="mt16" tabindex="-1">เกี่ยวกับพร้อม 72</h1>
+    <p class="mt12">แอปนี้พาคุณเตรียมตัวให้อยู่ได้อย่างน้อย 72 ชั่วโมงเมื่อไฟดับ เน็ตล่ม ธนาคารใช้ไม่ได้ หรือเกิดภัย และช่วยกันมิจฉาชีพที่ฉวยข่าววิกฤต</p>
+    <h2>ใครทำ</h2>
+    <p>ทำเป็นโครงการส่วนตัว ไม่แสวงกำไร ไม่มีโฆษณา ไม่ขายของ และไม่เก็บข้อมูลของคุณ</p>
+    <h2>ข้อมูลของคุณ</h2>
+    <p>ทุกอย่างที่กรอกอยู่ในเครื่องนี้เท่านั้น ไม่ส่งไปที่ไหน ไม่มีบัญชีผู้ใช้ แอปไม่เคยขอรหัสผ่าน เลขบัญชี หรือเลขบัตร ถ้ามีหน้าไหนขอ ให้ถือว่าเป็นของปลอม</p>
+    <h2>แหล่งอ้างอิง</h2>
+    <ul class="sources">${SOURCES.map(x => `<li><a href="${x.url}" target="_blank" rel="noopener noreferrer">${esc(x.name)}</a></li>`).join('')}</ul>
+    <p class="small mt12">ตรวจข้อมูลล่าสุด 7 พ.ย. 2569 เบอร์และมาตรการอาจเปลี่ยน ควรเช็กกับหน่วยงานโดยตรง</p>`;
 }
 
 // ───────── ทำทีละขั้น ─────────
@@ -192,7 +222,7 @@ function viewAll() {
       const end = !exp.has(it.id) ? ''
         : `<span class="end warn">${isExpired(s, it.id, today()) ? 'หมดอายุแล้ว' : 'ใกล้หมดอายุ'}</span>`;
       return `<a class="row" href="#/item/${it.id}/0"><span class="mark ${mark}" aria-hidden="true"></span>
-        <span class="grow">${esc(it.title)}<span class="sr">${d ? ' (ทำแล้ว)' : s.skipped[it.id] ? ' (ข้ามไว้)' : ''}</span></span>${end}</a>`;
+        <span class="grow">${esc(it.title)}<span class="mins">${it.minutes} นาที</span><span class="sr">${d ? ' (ทำแล้ว)' : s.skipped[it.id] ? ' (ข้ามไว้)' : ''}</span></span>${end}</a>`;
     }).join('')}</div>`).join('');
 
   return `
@@ -214,7 +244,8 @@ function viewAll() {
 function scamResult() {
   const r = assess(ui.scamPicked, SIGNALS);
   const [level, tips] = {
-    none: ['ไม่พบสัญญาณหลอกที่ชัด', ['ถ้ายังไม่แน่ใจ โทรถามเจ้าของเรื่องด้วยเบอร์ที่หาเอง']],
+    // ยังไม่ได้เลือกอะไร ห้ามบอกว่าปลอดภัย
+    none: ['แตะข้อที่ตรงกับข้อความที่ได้รับ', ['ถ้าไม่มีข้อไหนตรงเลย ก็ยังควรโทรถามเจ้าของเรื่องด้วยเบอร์ที่หาเอง ก่อนทำตามข้อความ']],
     caution: ['ระวัง', r.advice],
     likely: ['น่าจะหลอก', r.advice],
   }[r.level];
@@ -317,6 +348,7 @@ function route() {
     case 'sos': return viewSos();
     case 'contacts': return viewContacts();
     case 'print': return viewPrint();
+    case 'about': return viewAbout();
     default: return viewHome();
   }
 }

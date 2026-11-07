@@ -51,21 +51,50 @@ const scenarios = {
   async 'หน้าแรกว่างเปล่า'() {
     await boot(null);
     check('แสดง 0%', text('.big') === '0%', text('.big'));
-    check('ข้อแรกคืออีเมล 2 ชั้น', text('.lead')?.includes('ยืนยันตัวตน 2 ชั้น'), text('.lead'));
-    check('มี h1 สำหรับโปรแกรมอ่านหน้าจอ', !!q('h1'));
-    check('ปุ่มเกิดเหตุสูงอย่างน้อย 44px', q('.sos').getBoundingClientRect().height >= 44);
+    check('ข้อแรกเป็นข้อง่าย (เพิ่มคนสำคัญ)', text('.lead') === 'เพิ่มคนสำคัญอย่างน้อย 2 คน', text('.lead'));
+    check('ชื่อแอปเห็นได้บนหน้าแรก', text('h1') === 'พร้อม 72' && q('h1').getBoundingClientRect().width > 50, text('h1'));
+    check('บอกว่าแอปทำอะไร', text('.purpose')?.includes('72 ชั่วโมง'), text('.purpose'));
+    check('บอกว่าฟรี ไม่ต้องสมัคร ข้อมูลอยู่ในเครื่อง', ['ฟรี', 'ไม่ต้องสมัคร', 'อยู่ในเครื่อง'].every(w => text('.promise')?.includes(w)), text('.promise'));
+    check('บอกเวลารวมที่เหลือ', /ราว .*(ชั่วโมง|นาที)/.test(text('.total') ?? ''), text('.total'));
+    check('มีปุ่มโทร 191 และ 1669 บนหน้าแรก', !!q('a[href="tel:191"]') && !!q('a[href="tel:1669"]'));
+    check('ปุ่มฉุกเฉินสูงอย่างน้อย 44px', q('.sos').getBoundingClientRect().height >= 44);
+    check('ปุ่มฉุกเฉินชื่อชัด', text('.sos') === 'ฉุกเฉิน', text('.sos'));
+    check('มีลิงก์เกี่ยวกับแอป', !!q('a[href="#/about"]'));
+  },
+
+  async 'หัวข้อที่รับโฟกัสไม่มีกรอบดำ'() {
+    await boot(null, '#/all');
+    const h = q('h1');
+    check('โฟกัสอยู่ที่หัวข้อ', doc().activeElement === h);
+    check('ไม่มีเส้นกรอบ', win().getComputedStyle(h).outlineStyle === 'none', win().getComputedStyle(h).outlineStyle);
+  },
+
+  async 'รายการทั้งหมดบอกเวลาแต่ละข้อ'() {
+    await boot(null, '#/all');
+    check('มีนาทีข้างแต่ละข้อ', doc().querySelectorAll('.row .mins').length === 30);
+  },
+
+  async 'หน้าเกี่ยวกับแอป'() {
+    await boot(null, '#/about');
+    check('บอกว่าไม่แสวงกำไร', doc().body.textContent.includes('ไม่แสวงกำไร'));
+    check('มีแหล่งอ้างอิง ธปท.', !!q('a[href*="bot.or.th"]'));
+    check('บอกวันที่ตรวจข้อมูลล่าสุด', doc().body.textContent.includes('ตรวจข้อมูลล่าสุด'));
   },
 
   async 'ทำข้อแรกจนจบ'() {
-    await boot(null);
-    click('a.btn');
-    await wait(80);
-    check('ชื่อข้อแสดงทุกขั้น', text('.mt40 .small')?.includes('ยืนยันตัวตน'));
+    await boot(null, '#/item/cyber-1/0');
+    check('ชื่อข้อแสดงทุกขั้น', text('.mt40 .small')?.includes('รหัส 2 ชั้น'), text('.mt40 .small'));
     for (let i = 0; i < 3; i++) { click('a.btn'); await wait(80); }
-    check('ขั้นสุดท้ายยังเห็นชื่อข้อ', text('.mt40 .small')?.includes('ยืนยันตัวตน'));
+    check('ขั้นสุดท้ายยังเห็นชื่อข้อ', text('.mt40 .small')?.includes('รหัส 2 ชั้น'));
     click('[data-act="done"]');
     await wait(120);
     check('กลับหน้าแรก 3%', text('.big') === '3%', text('.big'));
+  },
+
+  async 'ตรวจข้อความ: ยังไม่เลือก = ยังไม่ตัดสิน'() {
+    await boot(null, '#/check');
+    check('ไม่บอกว่าปลอดภัยก่อนเลือก', !doc().body.textContent.includes('ไม่พบสัญญาณหลอก'));
+    check('บอกให้แตะข้อที่ตรง', text('#scam-result .level')?.includes('แตะ'), text('#scam-result .level'));
   },
 
   async 'ฟอร์มเงินสด: ตรวจช่องว่าง'() {

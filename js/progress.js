@@ -6,6 +6,17 @@ export function doneCount(state, items) {
   return items.filter(i => state.done[i.id]).length;
 }
 
+export function remainingMinutes(state, items) {
+  return items.filter(i => !state.done[i.id]).reduce((n, i) => n + i.minutes, 0);
+}
+
+export function formatMinutes(min) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (!h) return `${m} นาที`;
+  return m ? `${h} ชั่วโมง ${m} นาที` : `${h} ชั่วโมง`;
+}
+
 export function percent(state, items) {
   if (!items.length) return 0;
   return Math.round((doneCount(state, items) / items.length) * 100);

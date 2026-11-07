@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ITEMS, ORDER } from '../js/data.js';
-import { percent, groupPercent, expiringIds, nextItem, doneCount, isSnoozed, isExpired, ackUntil, addDays } from '../js/progress.js';
+import { percent, groupPercent, expiringIds, nextItem, doneCount, isSnoozed, isExpired, ackUntil, addDays, remainingMinutes, formatMinutes } from '../js/progress.js';
 import { defaultState } from '../js/store.js';
 
 const TODAY = new Date('2026-11-07T12:00:00');
@@ -127,4 +127,18 @@ test('ข้อที่ยังไม่ทำ ไม่ถูกนับว�
   const s = defaultState();
   s.expiry['kit-2'] = plusDays(5);
   assert.deepEqual(expiringIds(s, TODAY), []);
+});
+
+test('remainingMinutes นับเฉพาะข้อที่ยังไม่ทำ', () => {
+  const s = defaultState();
+  const all = ITEMS.reduce((n, i) => n + i.minutes, 0);
+  assert.equal(remainingMinutes(s, ITEMS), all);
+  s.done['cyber-1'] = 'x';
+  assert.equal(remainingMinutes(s, ITEMS), all - ITEMS.find(i => i.id === 'cyber-1').minutes);
+});
+
+test('formatMinutes อ่านง่าย', () => {
+  assert.equal(formatMinutes(45), '45 นาที');
+  assert.equal(formatMinutes(60), '1 ชั่วโมง');
+  assert.equal(formatMinutes(185), '3 ชั่วโมง 5 นาที');
 });
