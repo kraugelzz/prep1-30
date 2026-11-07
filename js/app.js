@@ -291,7 +291,7 @@ function route() {
 let lastHash = null;
 function render() {
   $app.innerHTML = route();
-  $app.querySelectorAll("[data-pct]").forEach(el => { el.style.width = `${el.dataset.pct}%`; });
+  $app.querySelectorAll("[data-pct]").forEach(el => { el.style.transform = `scaleX(${Number(el.dataset.pct) / 100})`; });
   if (location.hash !== lastHash) {
     lastHash = location.hash;
     window.scrollTo(0, 0);
