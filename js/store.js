@@ -7,6 +7,7 @@ export function defaultState() {
     version: 1,
     done: {},
     skipped: {},
+    snoozed: {},
     expiry: {},
     dailySpend: null,
     contacts: [],
@@ -41,6 +42,7 @@ function normalize(d, known) {
     ...defaultState(),
     done: pick(d.done, known, v => typeof v === 'string' && v.length > 0),
     skipped: pick(d.skipped, known, v => v === true),
+    snoozed: isObj(d.snoozed) ? pick(d.snoozed, known, v => typeof v === 'string' && DAY_RE.test(v)) : {},
     expiry: pick(d.expiry, known, v => typeof v === 'string' && DAY_RE.test(v)),
     dailySpend: typeof d.dailySpend === 'number' && d.dailySpend > 0 ? d.dailySpend : null,
     contacts: d.contacts

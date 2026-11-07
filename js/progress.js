@@ -31,10 +31,25 @@ export function expiringIds(state, today, days = 30) {
     .map(([id]) => id);
 }
 
-// ข้อที่ข้ามไว้จะไม่ถูกเสนอเป็น "ใกล้หมดอายุ" ซ้ำ จนกว่าจะกด "ทำแล้ว" ใหม่
+export const SNOOZE_DAYS = 7;
+
+// เลื่อนเตือนไว้ถึงวันที่ใน snoozed[id] — แต่ถ้าของหมดอายุไปแล้ว เตือนเสมอ
+export function isSnoozed(state, id, today) {
+  const until = state.snoozed?.[id] && parseDay(state.snoozed[id]);
+  if (!until || until.getTime() <= today.getTime()) return false;
+  const exp = state.expiry[id] && parseDay(state.expiry[id]);
+  return !(exp && exp.getTime() <= today.getTime());
+}
+
+// วันที่ (YYYY-MM-DD) ที่ห่างจาก today ไป n วัน ตามเวลาท้องถิ่น
+export function addDays(today, n) {
+  const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 // id ที่ไม่อยู่ใน order ไม่ถูกเสนอเลย
 export function nextItem(state, order, today) {
-  const exp = expiringIds(state, today).find(id => order.includes(id) && !state.skipped[id]);
+  const exp = expiringIds(state, today).find(id => order.includes(id) && !isSnoozed(state, id, today));
   if (exp) return { id: exp, reason: 'expiring' };
   const todo = order.find(id => !state.done[id] && !state.skipped[id]);
   if (todo) return { id: todo, reason: 'todo' };

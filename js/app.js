@@ -1,5 +1,5 @@
 import { GROUPS, ITEMS, ORDER, HOTLINES, NEWS, SIGNALS, SOS_STEPS, IF_SCAMMED } from './data.js';
-import { percent, groupPercent, nextItem, expiringIds, doneCount } from './progress.js';
+import { percent, groupPercent, nextItem, expiringIds, doneCount, addDays, SNOOZE_DAYS } from './progress.js';
 import { assess } from './scam.js';
 import { createStore, KEY } from './store.js';
 
@@ -49,9 +49,9 @@ function viewHome() {
   if (ui.updateReady) notices.push('<button class="notice" data-act="update">มีเวอร์ชันใหม่ แตะเพื่อโหลด</button>');
 
   return `
-    <div class="top"><span></span><a class="sos" href="#/sos">เกิดเหตุ</a></div>
+    <div class="top"><h1 class="sr" tabindex="-1">พร้อม 72 ความพร้อมของคุณ</h1><span></span><a class="sos" href="#/sos">เกิดเหตุ</a></div>
     ${notices.join('')}
-    <p class="big" aria-label="พร้อมแล้ว ${pct} เปอร์เซ็นต์">${pct}%</p>
+    <p class="big">${pct}%</p>
     <div class="bar" aria-hidden="true"><span data-pct="${pct}"></span></div>
     <p class="small">ทำแล้ว ${done} จาก ${ITEMS.length}</p>
     <div class="spacer"></div>
@@ -104,28 +104,29 @@ function viewItem(id, stepStr) {
   const done = !!store.state.done[id];
   const expiring = isExpiring(id);
 
-  // ปุ่มรอง: ข้อที่ยังไม่ทำ = ไว้ทีหลัง, ใกล้หมดอายุ = ไว้ทีหลัง (เลิกเตือน),
-  // ทำแล้ว = กลับ (หน้าแรก) หรือ ยังไม่ได้ทำ (หน้าสุดท้าย) — ไม่ติดสถานะข้ามให้ข้อที่ทำแล้ว
-  const skipBtn = `<button class="btn ghost" data-act="skip" data-id="${id}">ไว้ทีหลัง</button>`;
-  const firstAlt = !done || expiring ? skipBtn : '<a class="btn ghost" href="#/all">กลับ</a>';
-  const lastAlt = !done ? skipBtn
-    : expiring ? skipBtn
-      : `<button class="btn ghost" data-act="undo" data-id="${id}">ยังไม่ได้ทำ</button>`;
+  // ปุ่มรอง: ยังไม่ทำ = ไว้ทีหลัง (ข้าม), ใกล้หมดอายุ = เตือนอีก 7 วัน (เลื่อน),
+  // ทำแล้ว = ปิด (หน้าแรก) — ข้อที่ทำแล้วไม่ถูกติดสถานะข้าม
+  const secondary = !done
+    ? `<button class="btn ghost" data-act="skip" data-id="${id}">ไว้ทีหลัง</button>`
+    : expiring
+      ? `<button class="btn ghost" data-act="snooze" data-id="${id}">เตือนอีก ${SNOOZE_DAYS} วัน</button>`
+      : '<a class="btn ghost" href="#/">ปิด</a>';
+  const undoBtn = done ? `<button class="btn ghost" data-act="undo" data-id="${id}">ยังไม่ได้ทำ</button>` : '';
 
   return `
     <div class="top"><a href="#/">ปิด</a><span class="small">${esc(GROUPS[it.group])}</span></div>
     <div class="mt40">
-      <p class="small">${step === 0 ? esc(it.title) : `ขั้นที่ ${step + 1} จาก ${n}`}</p>
-      ${step === 0 && n > 1 ? `<p class="small">ขั้นที่ 1 จาก ${n}</p>` : ''}
+      <p class="small">${esc(it.title)}</p>
+      ${n > 1 ? `<p class="small">ขั้นที่ ${step + 1} จาก ${n}</p>` : ''}
       <h1 class="lead mt8" tabindex="-1">${esc(it.steps[step])}</h1>
       ${last ? inputFields(it) : ''}
       <p class="err" id="f-err" role="alert"></p>
     </div>
     <div class="spacer"></div>
     ${last
-      ? `<button class="btn" data-act="done" data-id="${id}">ทำแล้ว</button>${lastAlt}`
+      ? `<button class="btn" data-act="done" data-id="${id}">ทำแล้ว</button>${expiring ? secondary : ''}${undoBtn || secondary}`
       : `<a class="btn" href="#/item/${id}/${step + 1}">ต่อไป</a>
-         ${step > 0 ? `<a class="btn ghost" href="#/item/${id}/${step - 1}">ย้อนกลับ</a>` : firstAlt}`}`;
+         ${step > 0 ? `<a class="btn ghost" href="#/item/${id}/${step - 1}">ย้อนกลับ</a>` : secondary}`}`;
 }
 
 function isExpiring(id) {
@@ -134,11 +135,16 @@ function isExpiring(id) {
 
 function collectAndValidate(it) {
   const errEl = document.getElementById('f-err');
-  const fail = msg => { errEl.textContent = msg; return null; };
+  const fail = (msg, el) => {
+    errEl.textContent = msg;
+    if (el) { el.setAttribute('aria-invalid', 'true'); el.setAttribute('aria-describedby', 'f-err'); el.focus(); }
+    return null;
+  };
+  const firstContact = () => document.querySelector('#f-contacts input');
   const patch = {};
   if (it.input === 'dailySpend') {
     const v = Number(document.getElementById('f-spend').value);
-    if (!Number.isFinite(v) || v <= 0) return fail('ใส่จำนวนเงินต่อวันก่อน');
+    if (!Number.isFinite(v) || v <= 0) return fail('ใส่จำนวนเงินต่อวันก่อน', document.getElementById('f-spend'));
     patch.dailySpend = Math.round(v);
   }
   if (it.input === 'contacts') {
@@ -146,21 +152,21 @@ function collectAndValidate(it) {
       name: r.querySelector('[data-k="name"]').value.trim(),
       phone: r.querySelector('[data-k="phone"]').value.trim(),
     })).filter(c => c.name || c.phone);
-    if (rows.some(c => !c.name || !c.phone)) return fail('ใส่ทั้งชื่อและเบอร์ในแถวที่กรอก');
-    if (rows.some(c => c.phone.replace(/\D/g, '').length < 3)) return fail('เบอร์โทรดูไม่ถูกต้อง');
-    if (rows.length < 2) return fail('ใส่อย่างน้อย 2 คน');
+    if (rows.some(c => !c.name || !c.phone)) return fail('ใส่ทั้งชื่อและเบอร์ในแถวที่กรอก', firstContact());
+    if (rows.some(c => c.phone.replace(/\D/g, '').length < 3)) return fail('เบอร์โทรดูไม่ถูกต้อง', firstContact());
+    if (rows.length < 2) return fail('ใส่อย่างน้อย 2 คน', firstContact());
     patch.contacts = rows.slice(0, 5);
   }
   if (it.input === 'meetNear' || it.input === 'meetFar') {
     const v = document.getElementById('f-meet').value.trim();
-    if (!v) return fail('พิมพ์จุดนัดพบก่อน');
+    if (!v) return fail('พิมพ์จุดนัดพบก่อน', document.getElementById('f-meet'));
     patch[it.input] = v;
   }
   if (it.expiry) {
     patch.expiry = document.getElementById('f-expiry').value || null;
     // เปลี่ยนของแล้วต้องใส่วันของล็อตใหม่ ไม่งั้นจะถูกเตือนข้อเดิมวนไม่จบ
     if (patch.expiry && patch.expiry === store.state.expiry[it.id] && isExpiring(it.id)) {
-      return fail('ใส่วันหมดอายุของล็อตใหม่ หรือเว้นว่างไว้');
+      return fail('ใส่วันหมดอายุของล็อตใหม่ หรือเว้นว่างไว้', document.getElementById('f-expiry'));
     }
   }
   return patch;
@@ -177,7 +183,7 @@ function viewAll() {
       const mark = d ? 'on' : s.skipped[it.id] ? 'skip' : '';
       const end = exp.has(it.id) ? '<span class="end warn">ใกล้หมดอายุ</span>' : '';
       return `<a class="row" href="#/item/${it.id}/0"><span class="mark ${mark}" aria-hidden="true"></span>
-        <span class="grow">${esc(it.title)}<span class="sr">${d ? ' (ทำแล้ว)' : ''}</span></span>${end}</a>`;
+        <span class="grow">${esc(it.title)}<span class="sr">${d ? ' (ทำแล้ว)' : s.skipped[it.id] ? ' (ข้ามไว้)' : ''}</span></span>${end}</a>`;
     }).join('')}</div>`).join('');
 
   return `
@@ -196,24 +202,25 @@ function viewAll() {
 }
 
 // ───────── ตรวจข้อความ ─────────
-function viewCheck() {
+function scamResult() {
   const r = assess(ui.scamPicked, SIGNALS);
-  const levelText = {
+  const [level, tips] = {
     none: ['ไม่พบสัญญาณหลอกที่ชัด', ['ถ้ายังไม่แน่ใจ โทรถามเจ้าของเรื่องด้วยเบอร์ที่หาเอง']],
     caution: ['ระวัง', r.advice],
     likely: ['น่าจะหลอก', r.advice],
   }[r.level];
+  return `<p class="level ${r.level === 'likely' ? 'warn' : ''}">${level}</p>
+      <ul>${tips.map(a => `<li>${esc(a)}</li>`).join('')}</ul>`;
+}
 
+function viewCheck() {
   return `
     <div class="top"><a href="#/">ปิด</a><span></span></div>
     <h1 class="lead q" tabindex="-1">ข้อความที่ได้รับ…</h1>
     <div role="group" aria-label="สัญญาณที่พบ">
       ${SIGNALS.map(sg => `<button class="opt" data-act="signal" data-id="${sg.id}" aria-pressed="${ui.scamPicked.includes(sg.id)}">${esc(sg.label)}</button>`).join('')}
     </div>
-    <div class="result" aria-live="polite">
-      <p class="level ${r.level === 'likely' ? 'warn' : ''}">${levelText[0]}</p>
-      <ul>${levelText[1].map(a => `<li>${esc(a)}</li>`).join('')}</ul>
-    </div>
+    <div class="result" id="scam-result" aria-live="polite" aria-atomic="true">${scamResult()}</div>
     <div class="spacer"></div>
     <button class="btn ghost" data-act="toggle-scammed" aria-expanded="${ui.showScammed}">ถ้าโดนหลอกไปแล้ว</button>
     ${ui.showScammed ? `${numberedList(IF_SCAMMED)}
@@ -277,7 +284,7 @@ function viewPrint() {
   const s = store.state;
   const todo = ORDER.filter(id => !s.done[id]).map(id => byId[id]);
   return `
-    <div class="top no-print"><a href="#/all">ปิด</a><span></span></div>
+    <div class="top no-print"><a href="#/">ปิด</a><span></span></div>
     <h1 class="mt16" tabindex="-1">พร้อม 72 สรุปฉุกเฉิน</h1>
     <p class="small">พิมพ์เมื่อ ${isoDay(today())}</p>
     <h2>เมื่อเกิดเหตุ</h2>
@@ -364,13 +371,19 @@ $app.addEventListener('click', e => {
       if (patch.contacts) s.contacts = patch.contacts;
       if (patch.meetNear) s.meetNear = patch.meetNear;
       if (patch.meetFar) s.meetFar = patch.meetFar;
+      delete s.snoozed[id];
       if (it.expiry) {
         if (patch.expiry) s.expiry[id] = patch.expiry; else delete s.expiry[id];
       }
     });
+    // ล็อตใหม่ที่หมดอายุภายใน 30 วันอยู่แล้ว: รับทราบแล้ว เตือนอีกทีวันที่หมดอายุจริง
+    if (isExpiring(id)) store.update(s => { s.snoozed[id] = s.expiry[id]; });
+    goHome();
+  } else if (act === 'snooze') {
+    store.update(s => { s.snoozed[id] = addDays(today(), SNOOZE_DAYS); });
     goHome();
   } else if (act === 'undo') {
-    store.update(s => { delete s.done[id]; delete s.skipped[id]; });
+    store.update(s => { delete s.done[id]; delete s.skipped[id]; delete s.snoozed[id]; });
     goHome();
   } else if (act === 'skip') {
     store.update(s => { s.skipped[id] = true; });
@@ -382,7 +395,9 @@ $app.addEventListener('click', e => {
     if (count + 1 >= 5) el.remove();
   } else if (act === 'signal') {
     ui.scamPicked = ui.scamPicked.includes(id) ? ui.scamPicked.filter(x => x !== id) : [...ui.scamPicked, id];
-    render();
+    // แก้เฉพาะปุ่มและผล ไม่สร้างหน้าใหม่ — live region ต้องคงอยู่ โปรแกรมอ่านหน้าจอถึงจะอ่านผล
+    el.setAttribute('aria-pressed', String(ui.scamPicked.includes(id)));
+    document.getElementById('scam-result').innerHTML = scamResult();
   } else if (act === 'toggle-scammed') {
     ui.showScammed = !ui.showScammed;
     render();
@@ -409,14 +424,14 @@ $app.addEventListener('click', e => {
   }
 });
 
-const isStandalone = () =>
-  window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+// navigator.standalone มีเฉพาะ iOS Safari — Android ใช้ลิงก์ดาวน์โหลดตามปกติ (บันทึกลง Downloads ได้)
+const isIOSApp = () => navigator.standalone === true;
 
 // แอปที่ติดตั้งบน iPhone: ลิงก์ดาวน์โหลด blob จะเปิดไฟล์ค้างโดยไม่มีปุ่มกลับ จึงใช้แผ่นแชร์แทน
 async function exportBackup() {
   const name = `prep72-${isoDay(today())}.json`;
   const blob = new Blob([store.exportJSON()], { type: 'application/json' });
-  if (isStandalone() && typeof File === 'function' && navigator.canShare) {
+  if (isIOSApp() && typeof File === 'function' && navigator.canShare) {
     const file = new File([blob], name, { type: 'application/json' });
     if (navigator.canShare({ files: [file] })) {
       try {
@@ -458,6 +473,7 @@ window.addEventListener('storage', e => {
 $app.addEventListener('input', e => {
   const errEl = document.getElementById('f-err');
   if (errEl) errEl.textContent = '';
+  e.target.removeAttribute?.('aria-invalid');
   if (e.target.id === 'f-spend') {
     const v = Number(e.target.value);
     document.getElementById('f-goal').textContent = v > 0 ? `เป้าเงินสด ${baht(v * 3)} บาท` : '';

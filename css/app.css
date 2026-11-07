@@ -32,6 +32,7 @@
   --ink: #1F2A2E;
   --muted: #5B6A6E;
   --line: #C9D1CF;
+  --field: #78878A;
   --track: #D9E0DE;
   --done: #5E7D6F;
   --warn: #8A5112;
@@ -44,6 +45,7 @@
     --ink: #E6ECEA;
     --muted: #93A2A5;
     --line: #2E3A3E;
+    --field: #647478;
     --track: #263034;
     --done: #86A898;
     --warn: #D9A55A;
@@ -83,17 +85,30 @@ ul, ol { padding: 0; list-style: none; }
 
 .top { display: flex; justify-content: space-between; align-items: center; min-height: 44px; }
 .top a, .link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
   color: var(--muted);
   font-size: 14px;
   text-decoration: none;
-  padding: 10px 0;
+  padding: 0;
   background: none;
   border: 0;
   font: inherit;
   font-size: 14px;
   cursor: pointer;
 }
-.top .sos { color: var(--warn); }
+/* ปุ่มเกิดเหตุ: เห็นชัดแต่ไม่ตะโกน — กรอบอำพันบาง ไม่ถมสี */
+.top .sos {
+  justify-content: center;
+  padding: 0 18px;
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  color: var(--warn);
+  font-size: 15px;
+  font-weight: 500;
+}
 .small { font-size: 13px; color: var(--muted); }
 .warn { color: var(--warn); }
 .spacer { flex: 1; min-height: 24px; }
@@ -128,7 +143,7 @@ h2 { font-size: 13px; font-weight: 400; color: var(--muted); margin: 28px 0 8px;
 .btn + .btn { margin-top: 6px; }
 
 .foot { display: flex; justify-content: space-between; margin-top: 18px; }
-.foot a { color: var(--muted); font-size: 14px; text-decoration: none; padding: 8px 0; }
+.foot a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); font-size: 14px; text-decoration: none; }
 
 .opt {
   display: flex;
@@ -138,7 +153,7 @@ h2 { font-size: 13px; font-weight: 400; color: var(--muted); margin: 28px 0 8px;
   min-height: 52px;
   padding: 12px 14px;
   margin-bottom: 8px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--field);
   border-radius: 14px;
   background: none;
   color: var(--ink);
@@ -183,7 +198,7 @@ input[type="text"], input[type="tel"], input[type="number"], input[type="date"] 
   min-height: 48px;
   margin-top: 6px;
   padding: 10px 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--field);
   border-radius: 12px;
   background: transparent;
   color: var(--ink);

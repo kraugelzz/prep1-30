@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ITEMS, ORDER } from '../js/data.js';
-import { percent, groupPercent, expiringIds, nextItem, doneCount } from '../js/progress.js';
+import { percent, groupPercent, expiringIds, nextItem, doneCount, isSnoozed, addDays } from '../js/progress.js';
 import { defaultState } from '../js/store.js';
 
 const TODAY = new Date('2026-11-07T12:00:00');
@@ -64,12 +64,35 @@ test('หมดอายุอีก 60 วัน → ยังไม่เต�
   assert.equal(nextItem(s, ORDER, TODAY), null);
 });
 
-test('ข้อใกล้หมดอายุที่กด "ไว้ทีหลัง" ไม่ถูกเสนอซ้ำ', () => {
+test('เลื่อนเตือนของใกล้หมดอายุ → ไม่เสนอจนถึงวันที่เลื่อนไว้', () => {
+  const s = defaultState();
+  s.done = doneAll();
+  s.expiry['kit-1'] = plusDays(10);
+  s.snoozed['kit-1'] = addDays(TODAY, 7);
+  assert.equal(nextItem(s, ORDER, TODAY), null);
+  const later = new Date(TODAY.getTime() + 8 * 864e5);
+  assert.deepEqual(nextItem(s, ORDER, later), { id: 'kit-1', reason: 'expiring' });
+});
+
+test('ของหมดอายุไปแล้ว เตือนเสมอแม้เคยเลื่อนไว้', () => {
+  const s = defaultState();
+  s.done = doneAll();
+  s.expiry['kit-1'] = plusDays(-1);
+  s.snoozed['kit-1'] = addDays(TODAY, 30);
+  assert.equal(isSnoozed(s, 'kit-1', TODAY), false);
+  assert.deepEqual(nextItem(s, ORDER, TODAY), { id: 'kit-1', reason: 'expiring' });
+});
+
+test('การกด "ไว้ทีหลัง" แบบเก่า (skipped) ไม่ปิดการเตือนหมดอายุ', () => {
   const s = defaultState();
   s.done = doneAll();
   s.expiry['kit-1'] = plusDays(10);
   s.skipped['kit-1'] = true;
-  assert.equal(nextItem(s, ORDER, TODAY), null);
+  assert.deepEqual(nextItem(s, ORDER, TODAY), { id: 'kit-1', reason: 'expiring' });
+});
+
+test('addDays ข้ามเดือนได้ถูก', () => {
+  assert.equal(addDays(new Date(2026, 10, 28), 7), '2026-12-05');
 });
 
 test('id ที่ไม่รู้จักไม่ถูกเสนอเป็นข้อต่อไป', () => {

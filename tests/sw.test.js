@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { precacheFiles, currentVersion, expectedVersion } from '../scripts/sw-version.mjs';
 
 const src = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
@@ -11,11 +11,21 @@ test('ทุกไฟล์ใน FILES มีอยู่จริง', () => {
   }
 });
 
-test('ทุกไฟล์ใน js/ ถูก precache (ไม่งั้นออฟไลน์จะพัง)', () => {
+test('ทุกไฟล์ที่แอปใช้ถูก precache (ไม่งั้นออฟไลน์จะพัง)', () => {
   const files = precacheFiles(src);
-  for (const f of ['js/app.js', 'js/data.js', 'js/progress.js', 'js/scam.js', 'js/store.js']) {
-    assert.ok(files.includes(f), f);
-  }
+  const onDisk = [
+    'index.html',
+    'manifest.webmanifest',
+    ...['css', 'js', 'fonts', 'icons'].flatMap(dir =>
+      readdirSync(new URL(`../${dir}/`, import.meta.url))
+        .filter(f => !f.endsWith('.txt'))
+        .map(f => `${dir}/${f}`)),
+  ];
+  for (const f of onDisk) assert.ok(files.includes(f), `${f} ยังไม่อยู่ใน FILES ของ sw.js`);
+});
+
+test('activate ลบเฉพาะ cache ของแอปนี้', () => {
+  assert.match(src, /k\.startsWith\('prep72-'\)/);
 });
 
 test('VERSION ตรงกับเนื้อหาไฟล์ — ถ้าล้ม ให้รัน npm run stamp', () => {

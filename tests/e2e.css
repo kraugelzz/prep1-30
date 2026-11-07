@@ -1,0 +1,5 @@
+body { font-family: system-ui, sans-serif; margin: 16px; background: #fff; color: #111; }
+#results li { margin: 4px 0; }
+.pass { color: #1b6b3a; }
+.fail { color: #a11; font-weight: 600; }
+iframe { width: 375px; height: 700px; border: 1px solid #999; margin-top: 12px; }

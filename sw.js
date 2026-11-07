@@ -1,7 +1,7 @@
 // เก็บทุกไฟล์ไว้ในเครื่อง เปิดได้แม้ไม่มีเน็ต
 // VERSION มาจาก hash ของไฟล์ทั้งหมด — แก้ไฟล์แล้วรัน `npm run stamp`
 // (npm test จะล้มถ้าลืม) เครื่องผู้ใช้จึงได้ของใหม่เสมอ
-const VERSION = 'prep72-cdccbd55';
+const VERSION = 'prep72-83261846';
 
 const FILES = [
   './',
@@ -31,7 +31,8 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== VERSION).map(k => caches.delete(k))))
+      // ลบเฉพาะ cache เก่าของแอปนี้ — เว็บอื่นใน <บัญชี>.github.io ใช้ origin เดียวกัน
+      .then(keys => Promise.all(keys.filter(k => k.startsWith('prep72-') && k !== VERSION).map(k => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
