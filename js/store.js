@@ -24,7 +24,7 @@ const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function validate(d) {
-  if (!isObj(d)) return 'ไม่ใช่ไฟล์สำรองของพร้อม 72';
+  if (!isObj(d)) return 'ไม่ใช่ไฟล์สำรองของพร้อมรับมือ';
   if (d.version !== 1) return 'ไฟล์นี้มาจากเวอร์ชันอื่น';
   for (const k of ['done', 'skipped', 'expiry']) if (!isObj(d[k])) return 'ข้อมูลในไฟล์ไม่ครบ';
   if (!Array.isArray(d.contacts)) return 'ข้อมูลในไฟล์ไม่ครบ';

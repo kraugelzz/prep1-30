@@ -52,7 +52,7 @@ const scenarios = {
     await boot(null);
     check('แสดง 0%', text('.big') === '0%', text('.big'));
     check('ข้อแรกเป็นข้อง่าย (เพิ่มคนสำคัญ)', text('.lead') === 'เพิ่มคนสำคัญอย่างน้อย 2 คน', text('.lead'));
-    check('ชื่อแอปเห็นได้บนหน้าแรก', text('h1') === 'พร้อม 72' && q('h1').getBoundingClientRect().width > 50, text('h1'));
+    check('ชื่อแอปเห็นได้บนหน้าแรก', text('h1') === 'พร้อมรับมือ' && q('h1').getBoundingClientRect().width > 50, text('h1'));
     check('บอกว่าแอปทำอะไร (ค่าเริ่มต้น 3 วัน)', text('.purpose')?.includes('ให้อยู่ได้ 3 วัน'), text('.purpose'));
     check('บอกว่าฟรี ไม่ต้องสมัคร ข้อมูลอยู่ในเครื่อง', ['ฟรี', 'ไม่ต้องสมัคร', 'อยู่ในเครื่อง'].every(w => text('.promise')?.includes(w)), text('.promise'));
     check('บอกเวลารวมที่เหลือ', /ราว .*(ชั่วโมง|นาที)/.test(text('.total') ?? ''), text('.total'));

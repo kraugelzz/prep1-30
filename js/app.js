@@ -55,7 +55,7 @@ function viewHome() {
   const left = remainingMinutes(s, ITEMS);
 
   return `
-    <div class="top"><h1 class="brand" tabindex="-1">พร้อม 72</h1><a class="sos" href="#/sos">ฉุกเฉิน</a></div>
+    <div class="top"><h1 class="brand" tabindex="-1">พร้อมรับมือ</h1><a class="sos" href="#/sos">ฉุกเฉิน</a></div>
     ${notices.join('')}
     <p class="purpose">เตรียมตัวให้อยู่ได้ ${days()} วันเมื่อเกิดเหตุฉุกเฉิน ทำครบ 30 ขั้นเล็กๆ แล้วคุณจะมีของ เงินสด และแผนติดต่อพอสำหรับ ${days()} วัน</p>
     <p class="small goal">เป้าหมาย ${days()} วัน <a href="#/days">เปลี่ยน</a></p>
@@ -127,7 +127,7 @@ const SOURCES = [
 function viewAbout() {
   return `
     <div class="top"><a href="#/">ปิด</a><span></span></div>
-    <h1 class="mt16" tabindex="-1">เกี่ยวกับพร้อม 72</h1>
+    <h1 class="mt16" tabindex="-1">เกี่ยวกับพร้อมรับมือ</h1>
     <p class="mt12">แอปนี้พาคุณเตรียมตัวให้อยู่ได้ตามจำนวนวันที่เลือก (1–30 วัน ค่าเริ่มต้น 3 วันหรือ 72 ชั่วโมง)เมื่อไฟดับ เน็ตล่ม ธนาคารใช้ไม่ได้ หรือเกิดภัย และช่วยกันมิจฉาชีพที่ฉวยข่าววิกฤต</p>
     <h2>ใครทำ</h2>
     <p>ทำเป็นโครงการส่วนตัว ไม่แสวงกำไร ไม่มีโฆษณา ไม่ขายของ และไม่เก็บข้อมูลของคุณ</p>
@@ -376,7 +376,7 @@ function viewPrint() {
   const todo = ORDER.filter(id => !s.done[id]).map(id => byId[id]);
   return `
     <div class="top no-print"><a href="#/">ปิด</a><span></span></div>
-    <h1 class="mt16" tabindex="-1">พร้อม 72 สรุปฉุกเฉิน</h1>
+    <h1 class="mt16" tabindex="-1">พร้อมรับมือ สรุปฉุกเฉิน</h1>
     <p class="small">พิมพ์เมื่อ ${isoDay(today())}</p>
     <h2>เมื่อเกิดเหตุ</h2>
     ${numberedList(SOS_STEPS)}
