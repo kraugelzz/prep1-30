@@ -60,6 +60,24 @@ const scenarios = {
     check('ปุ่มฉุกเฉินสูงอย่างน้อย 44px', q('.sos').getBoundingClientRect().height >= 44);
     check('ปุ่มฉุกเฉินชื่อชัด', text('.sos') === 'ฉุกเฉิน', text('.sos'));
     check('มีลิงก์เกี่ยวกับแอป', !!q('a[href="#/about"]'));
+    check('บอกว่าไม่มีโฆษณา', text('.promise')?.includes('ไม่มีโฆษณา'), text('.promise'));
+    check('บอกว่าทำครบแล้วได้อะไร', text('.purpose')?.includes('พอสำหรับ 3 วัน'), text('.purpose'));
+    check('ป้ายเวลาบอกว่านับอะไร', text('.total')?.includes('ทั้ง 30 ขั้น'), text('.total'));
+    check('ตัวอย่างข้อถัดๆ ไป 3 ข้อ', doc().querySelectorAll('.preview li').length === 3);
+    check('ปุ่มบอกว่าเริ่มอะไร', text('.btn') === 'เริ่มข้อนี้' && q('a.btn').getAttribute('aria-label')?.includes('เพิ่มคนสำคัญ'), q('a.btn')?.getAttribute('aria-label'));
+    check('ตัวหนังสือรองไม่เล็กกว่า 15px', parseFloat(win().getComputedStyle(q('.small')).fontSize) >= 15);
+    check('เมนูล่างไม่ล้นจอ 360px', doc().documentElement.scrollWidth <= win().innerWidth);
+  },
+
+  async 'หน้าตรวจข้อความบอกวิธีใช้'() {
+    await boot(null, '#/check');
+    check('หัวข้อบอกให้เลือก', text('h1') === 'เลือกสิ่งที่ข้อความนี้ทำ', text('h1'));
+    check('บอกว่าไม่ต้องวางข้อความ', doc().body.textContent.includes('ไม่ต้องวางข้อความ'));
+  },
+
+  async 'หน้าเกี่ยวกับ: วิธีพิสูจน์ว่าไม่ส่งข้อมูลออก'() {
+    await boot(null, '#/about');
+    check('แนะนำทดสอบด้วยโหมดเครื่องบิน', doc().body.textContent.includes('โหมดเครื่องบิน'));
   },
 
   async 'หัวข้อที่รับโฟกัสไม่มีกรอบดำ'() {

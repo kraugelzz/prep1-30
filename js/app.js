@@ -35,7 +35,7 @@ function viewHome() {
       <p class="small ${next.reason === 'expiring' || next.reason === 'expired' ? 'warn' : ''}">${label}</p>
       <p class="lead">${esc(it.title)}</p>
       <p class="why">ราว ${it.minutes} นาที ${esc(it.why)}</p>
-      <a class="btn mt20" href="#/item/${it.id}/0">เริ่ม</a>`;
+      <a class="btn mt20" href="#/item/${it.id}/0" aria-label="เริ่ม: ${esc(it.title)}">เริ่มข้อนี้</a>`;
   } else {
     nextBlock = `
       <p class="lead">พร้อมแล้ว</p>
@@ -53,19 +53,30 @@ function viewHome() {
   return `
     <div class="top"><h1 class="brand" tabindex="-1">พร้อม 72</h1><a class="sos" href="#/sos">ฉุกเฉิน</a></div>
     ${notices.join('')}
-    <p class="purpose">เตรียมตัวให้อยู่ได้ 72 ชั่วโมงเมื่อเกิดเหตุฉุกเฉิน ทีละขั้นเล็กๆ 30 ขั้น</p>
-    <p class="promise">ฟรี ไม่ต้องสมัคร ข้อมูลอยู่ในเครื่องนี้เท่านั้น</p>
+    <p class="purpose">เตรียมตัวให้อยู่ได้ 72 ชั่วโมงเมื่อเกิดเหตุฉุกเฉิน ทำครบ 30 ขั้นเล็กๆ แล้วคุณจะมีของ เงินสด และแผนติดต่อพอสำหรับ 3 วัน</p>
+    <p class="promise">ฟรี ไม่ต้องสมัคร ไม่มีโฆษณา ข้อมูลอยู่ในเครื่องนี้เท่านั้น <a href="#/about">ใครทำ</a></p>
     <p class="big">${pct}%</p>
     <div class="bar" aria-hidden="true"><span data-pct="${pct}"></span></div>
-    <p class="small">ทำแล้ว ${done} จาก ${ITEMS.length}${left ? `<span class="total"> เหลือราว ${formatMinutes(left)}</span>` : ''}</p>
+    <p class="small">ทำแล้ว ${done} จาก ${ITEMS.length} ขั้น</p>
+    ${left ? `<p class="small total">ทั้ง 30 ขั้นเหลือเวลารวมราว ${formatMinutes(left)}</p>` : ''}
     <div class="spacer"></div>
     ${nextBlock}
     <div class="quick-call" aria-label="โทรด่วน">
       <a href="tel:191">โทร 191 ตำรวจ</a><a href="tel:1669">โทร 1669 รถพยาบาล</a>
     </div>
+    ${upcoming(next)}
     <nav class="foot" aria-label="เมนู">
       <a href="#/all">ทั้งหมด</a><a href="#/check">ตรวจข้อความ</a><a href="#/contacts">เบอร์ฉุกเฉิน</a><a href="#/about">เกี่ยวกับ</a>
     </nav>`;
+}
+
+// ตัวอย่างข้อถัดๆ ไป 3 ข้อ ให้เห็นว่ามีอะไรรออยู่ก่อนเริ่ม
+function upcoming(next) {
+  const s = store.state;
+  const ids = ORDER.filter(id => !s.done[id] && !s.skipped[id] && id !== next?.id).slice(0, 3);
+  if (!ids.length) return '';
+  return `<p class="small mt20">ข้อถัดๆ ไป</p>
+    <ul class="preview">${ids.map(id => `<li><span>${esc(byId[id].title)}</span><span class="small">${byId[id].minutes} นาที</span></li>`).join('')}</ul>`;
 }
 
 // ───────── เกี่ยวกับแอป ─────────
@@ -86,6 +97,8 @@ function viewAbout() {
     <p>ทำเป็นโครงการส่วนตัว ไม่แสวงกำไร ไม่มีโฆษณา ไม่ขายของ และไม่เก็บข้อมูลของคุณ</p>
     <h2>ข้อมูลของคุณ</h2>
     <p>ทุกอย่างที่กรอกอยู่ในเครื่องนี้เท่านั้น ไม่ส่งไปที่ไหน ไม่มีบัญชีผู้ใช้ แอปไม่เคยขอรหัสผ่าน เลขบัญชี หรือเลขบัตร ถ้ามีหน้าไหนขอ ให้ถือว่าเป็นของปลอม</p>
+    <h2>พิสูจน์เองได้</h2>
+    <p>เปิดโหมดเครื่องบินแล้วใช้แอปต่อ ทุกหน้ายังทำงานครบ เพราะแอปไม่ต้องคุยกับเซิร์ฟเวอร์ที่ไหนเลย</p>
     <h2>แหล่งอ้างอิง</h2>
     <ul class="sources">${SOURCES.map(x => `<li><a href="${x.url}" target="_blank" rel="noopener noreferrer">${esc(x.name)}</a></li>`).join('')}</ul>
     <p class="small mt12">ตรวจข้อมูลล่าสุด 7 พ.ย. 2569 เบอร์และมาตรการอาจเปลี่ยน ควรเช็กกับหน่วยงานโดยตรง</p>`;
@@ -256,7 +269,8 @@ function scamResult() {
 function viewCheck() {
   return `
     <div class="top"><a href="#/">ปิด</a><span></span></div>
-    <h1 class="lead q" tabindex="-1">ข้อความที่ได้รับ…</h1>
+    <h1 class="lead q" tabindex="-1">เลือกสิ่งที่ข้อความนี้ทำ</h1>
+    <p class="small qhint">แตะได้หลายข้อ ไม่ต้องวางข้อความ ไม่มีอะไรถูกส่งออก</p>
     <div role="group" aria-label="สัญญาณที่พบ">
       ${SIGNALS.map(sg => `<button class="opt" data-act="signal" data-id="${sg.id}" aria-pressed="${ui.scamPicked.includes(sg.id)}">${esc(sg.label)}</button>`).join('')}
     </div>

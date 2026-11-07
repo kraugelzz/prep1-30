@@ -113,7 +113,7 @@ ul, ol { padding: 0; list-style: none; }
   font-size: 15px;
   font-weight: 500;
 }
-.small { font-size: 14px; color: var(--muted); }
+.small { font-size: 15px; color: var(--muted); }
 .warn { color: var(--warn); }
 .spacer { flex: 1; min-height: 24px; }
 
@@ -124,7 +124,7 @@ ul, ol { padding: 0; list-style: none; }
 h1 { font-size: 24px; font-weight: 500; line-height: 1.5; }
 h2 { font-size: 13px; font-weight: 400; color: var(--muted); margin: 28px 0 8px; }
 .lead { font-size: 24px; font-weight: 500; line-height: 1.55; }
-.why { color: var(--muted); font-size: 15px; line-height: 1.7; margin-top: 6px; }
+.why { color: var(--muted); font-size: 16px; line-height: 1.7; margin-top: 6px; }
 
 .btn {
   display: block;
@@ -148,7 +148,11 @@ h2 { font-size: 13px; font-weight: 400; color: var(--muted); margin: 28px 0 8px;
 
 .brand { font-size: 18px; font-weight: 500; line-height: 1.4; }
 .purpose { font-size: 17px; line-height: 1.6; margin-top: 20px; }
-.promise { font-size: 14px; color: var(--done-text); margin-top: 6px; }
+.promise { font-size: 15px; color: var(--done-text); margin-top: 6px; }
+.promise a { color: var(--ink); margin-left: 4px; }
+.preview { margin-top: 6px; border-top: 1px solid var(--line); }
+.preview li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+.preview .small { flex: none; }
 
 .quick-call { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 12px; }
 .quick-call a {
@@ -162,7 +166,7 @@ h2 { font-size: 13px; font-weight: 400; color: var(--muted); margin: 28px 0 8px;
 .sources a { color: var(--ink); }
 
 .foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; }
-.foot a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); font-size: 14px; text-decoration: none; }
+.foot a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); font-size: 15px; text-decoration: none; }
 
 .opt {
   display: flex;
@@ -248,7 +252,8 @@ button.notice { width: 100%; background: none; font: inherit; font-size: 13px; t
 .mt16 { margin-top: 16px; }
 .mt20 { margin-top: 20px; }
 .mt40 { margin-top: 40px; }
-.q { margin: 28px 0 18px; }
+.q { margin: 28px 0 4px; }
+.qhint { margin-bottom: 18px; }
 #f-goal { margin-top: 8px; }
 .tel .l { text-align: left; }
 .tel .ink { color: var(--ink); }
