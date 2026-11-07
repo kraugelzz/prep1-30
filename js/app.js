@@ -38,7 +38,7 @@ function viewHome() {
     nextBlock = `
       <p class="small ${next.reason === 'expiring' || next.reason === 'expired' ? 'warn' : ''}">${label}</p>
       <p class="lead">${esc(T(it.title))}</p>
-      <p class="why">ราว ${it.minutes} นาที ${esc(it.why)}</p>
+      <p class="why">ราว ${it.minutes} นาที ${esc(T(it.why))}</p>
       <a class="btn mt20" href="#/item/${it.id}/0" aria-label="เริ่ม: ${esc(T(it.title))}">เริ่มข้อนี้</a>`;
   } else {
     nextBlock = `
@@ -57,14 +57,14 @@ function viewHome() {
   return `
     <div class="top"><h1 class="brand" tabindex="-1">พร้อมรับมือ</h1><a class="sos" href="#/sos">ฉุกเฉิน</a></div>
     ${notices.join('')}
-    <p class="purpose">เตรียมตัวให้อยู่ได้ ${days()} วันเมื่อเกิดเหตุฉุกเฉิน ทำครบ 30 ขั้นเล็กๆ แล้วคุณจะมีของ เงินสด และแผนติดต่อพอสำหรับ ${days()} วัน</p>
+    <p class="purpose">เตรียมตัวให้อยู่ได้ ${days()} วันเมื่อเกิดเหตุฉุกเฉิน ทำครบ ${ITEMS.length} ขั้นเล็กๆ แล้วคุณจะมีของ เงินสด และแผนติดต่อพอสำหรับ ${days()} วัน</p>
     <p class="small goal">เป้าหมาย ${days()} วัน <a href="#/days">เปลี่ยน</a></p>
     ${ui.daysNotice ? `<p class="notice" role="status">${esc(ui.daysNotice)}</p>` : ''}
     <p class="promise">ฟรี ไม่ต้องสมัคร ไม่มีโฆษณา ข้อมูลอยู่ในเครื่องนี้เท่านั้น <a href="#/about">ใครทำ</a></p>
     <p class="big">${pct}%</p>
     <div class="bar" aria-hidden="true"><span data-pct="${pct}"></span></div>
     <p class="small">ทำแล้ว ${done} จาก ${ITEMS.length} ขั้น</p>
-    ${left ? `<p class="small total">ทั้ง 30 ขั้นเหลือเวลารวมราว ${formatMinutes(left)}</p>` : ''}
+    ${left ? `<p class="small total">ทั้ง ${ITEMS.length} ขั้นเหลือเวลารวมราว ${formatMinutes(left)}</p>` : ''}
     <div class="spacer"></div>
     ${nextBlock}
     <div class="quick-call" aria-label="โทรด่วน">
@@ -110,7 +110,8 @@ function viewDays() {
     <div class="chips" role="group" aria-label="เลือกเร็ว">
       ${[3, 7, 14, 30].map(n => `<button class="chip" data-act="days-pick" data-i="${n}" aria-pressed="${n === d}">${n} วัน</button>`).join('')}
     </div>
-    <div id="days-preview" aria-live="polite">${daysPreview(d)}</div>
+    <div id="days-preview">${daysPreview(d)}</div>
+    <p class="sr" id="days-say" aria-live="polite"></p>
     <div class="spacer"></div>
     <button class="btn" data-act="days-save">ใช้ ${d} วัน</button>`;
 }
@@ -128,7 +129,7 @@ function viewAbout() {
   return `
     <div class="top"><a href="#/">ปิด</a><span></span></div>
     <h1 class="mt16" tabindex="-1">เกี่ยวกับพร้อมรับมือ</h1>
-    <p class="mt12">แอปนี้พาคุณเตรียมตัวให้อยู่ได้ตามจำนวนวันที่เลือก (1–30 วัน ค่าเริ่มต้น 3 วันหรือ 72 ชั่วโมง)เมื่อไฟดับ เน็ตล่ม ธนาคารใช้ไม่ได้ หรือเกิดภัย และช่วยกันมิจฉาชีพที่ฉวยข่าววิกฤต</p>
+    <p class="mt12">แอปนี้พาคุณเตรียมตัวให้อยู่ได้ตามจำนวนวันที่เลือก (1–30 วัน ค่าเริ่มต้น 3 วันหรือ 72 ชั่วโมง) เมื่อไฟดับ เน็ตล่ม ธนาคารใช้ไม่ได้ หรือเกิดภัย และช่วยกันมิจฉาชีพที่ฉวยข่าววิกฤต</p>
     <h2>ใครทำ</h2>
     <p>ทำเป็นโครงการส่วนตัว ไม่แสวงกำไร ไม่มีโฆษณา ไม่ขายของ และไม่เก็บข้อมูลของคุณ</p>
     <h2>ข้อมูลของคุณ</h2>
@@ -340,10 +341,10 @@ function personalBlock() {
   const s = store.state;
   const contacts = s.contacts.length
     ? s.contacts.map(c => `<a class="tel" href="${telHref(c.phone)}"><b>${esc(c.name)}</b><span>${esc(c.phone)}</span></a>`).join('')
-    : `<a class="tel no-print" href="#/item/contact-1/${byId['contact-1'].steps.length - 1}"><span>ยังไม่ได้เพิ่ม แตะเพื่อเพิ่ม</span></a>`;
+    : `<a class="tel no-print" href="#/item/contact-1/${stepsOf(byId['contact-1']).length - 1}"><span>ยังไม่ได้เพิ่ม แตะเพื่อเพิ่ม</span></a>`;
   const meet = (label, v, id) => v
     ? `<div class="tel"><span class="l">${label}</span><b class="v">${esc(v)}</b></div>`
-    : `<a class="tel no-print" href="#/item/${id}/${byId[id].steps.length - 1}"><span class="l">${label}</span><span>ยังไม่ได้ตั้ง</span></a>`;
+    : `<a class="tel no-print" href="#/item/${id}/${stepsOf(byId[id]).length - 1}"><span class="l">${label}</span><span>ยังไม่ได้ตั้ง</span></a>`;
   return `
     <h2>คนสำคัญ</h2>${contacts}
     <h2>จุดนัดพบ</h2>${meet('ใกล้บ้าน', s.meetNear, 'contact-2')}${meet('นอกพื้นที่', s.meetFar, 'contact-3')}`;
@@ -459,6 +460,7 @@ $app.addEventListener('click', e => {
     if (!patch) return;
     store.update(s => {
       s.done[id] = isoDay(today());
+      s.doneDays[id] = days();
       delete s.skipped[id];
       if ('dailySpend' in patch) s.dailySpend = patch.dailySpend;
       if (patch.contacts) s.contacts = patch.contacts;
@@ -474,7 +476,7 @@ $app.addEventListener('click', e => {
     });
     goHome();
   } else if (act === 'days-pick') {
-    setDraftDays(Number(el.dataset.i));
+    setDraftDays(Number(el.dataset.i), true);
   } else if (act === 'days-save') {
     const target = ui.draftDays ?? days();
     let reset = [];
@@ -488,7 +490,7 @@ $app.addEventListener('click', e => {
     store.update(s => { s.snoozed[id] = addDays(today(), SNOOZE_DAYS); });
     goHome();
   } else if (act === 'undo') {
-    store.update(s => { delete s.done[id]; delete s.skipped[id]; delete s.snoozed[id]; });
+    store.update(s => { delete s.done[id]; delete s.doneDays[id]; delete s.skipped[id]; delete s.snoozed[id]; });
     goHome();
   } else if (act === 'skip') {
     store.update(s => { s.skipped[id] = true; });
@@ -575,14 +577,23 @@ window.addEventListener('storage', e => {
   if (!location.hash.startsWith('#/item/')) render();
 });
 
-function setDraftDays(n) {
+function setDraftDays(n, announce = false) {
   const d = ui.draftDays = clampDays(n);
   const range = document.getElementById('f-days');
   if (range && Number(range.value) !== d) range.value = d;
   document.getElementById('days-preview').innerHTML = daysPreview(d);
   document.querySelectorAll('[data-act="days-pick"]').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.i) === d)));
   document.querySelector('[data-act="days-save"]').textContent = `ใช้ ${d} วัน`;
+  // ประกาศให้โปรแกรมอ่านหน้าจอเฉพาะตอนเลือกเสร็จ ไม่ใช่ทุกค่าระหว่างลาก
+  if (announce) {
+    const q = quantities(d);
+    document.getElementById('days-say').textContent = `${d} วัน น้ำดื่ม ${q.water} ลิตร ยา ${q.meds} วัน`;
+  }
 }
+
+$app.addEventListener('change', e => {
+  if (e.target.id === 'f-days') setDraftDays(e.target.value, true);
+});
 
 $app.addEventListener('input', e => {
   if (e.target.id === 'f-days') { setDraftDays(e.target.value); return; }

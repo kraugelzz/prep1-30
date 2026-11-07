@@ -26,14 +26,20 @@ export function fill(text, days) {
   return text.replace(/\{(days|water|meds)\}/g, (_, k) => String(q[k]));
 }
 
-// เปลี่ยนจำนวนวัน — ถ้าเพิ่มขึ้น ข้อที่เตรียมไว้ไม่พอจะถูกยกเลิกการติ๊ก คืน id ที่ถูกยกเลิก
+// เปลี่ยนจำนวนวัน — ข้อที่เคยเตรียมไว้น้อยกว่าเป้าใหม่จะถูกยกเลิกการติ๊ก คืน id ที่ถูกยกเลิก
+// doneDays[id] = จำนวนวันตอนกด "ทำแล้ว" (ข้อมูลเก่าที่ไม่มี ถือว่าเท่ากับจำนวนวันเดิม)
 export function applyDays(state, days) {
   const next = clampDays(days);
   const prev = clampDays(state.days);
   state.days = next;
-  if (next <= prev) return [];
-  const reset = SCALES_WITH_DAYS.filter(id => state.done[id]);
-  for (const id of reset) delete state.done[id];
+  state.doneDays ??= {};
+  // ข้อที่ทำแล้วแต่ยังไม่มีบันทึก: จดว่าเตรียมไว้พอสำหรับจำนวนวันเดิม (กันลด-เพิ่มกลับแล้วถูกยกเลิก)
+  for (const id of SCALES_WITH_DAYS) if (state.done[id] && !state.doneDays[id]) state.doneDays[id] = prev;
+  const reset = SCALES_WITH_DAYS.filter(id => state.done[id] && state.doneDays[id] < next);
+  for (const id of reset) {
+    delete state.done[id];
+    delete state.doneDays[id];
+  }
   return reset;
 }
 

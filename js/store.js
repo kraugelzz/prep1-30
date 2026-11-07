@@ -9,6 +9,7 @@ export function defaultState() {
     version: 1,
     days: DEFAULT_DAYS,
     done: {},
+    doneDays: {},
     skipped: {},
     snoozed: {},
     expiry: {},
@@ -46,6 +47,7 @@ function normalize(d, known) {
     ...defaultState(),
     days: clampDays(d.days ?? DEFAULT_DAYS),
     done,
+    doneDays: isObj(d.doneDays) ? pick(d.doneDays, known, v => Number.isInteger(v) && v >= 1 && v <= 30) : {},
     // ข้อที่ทำแล้วไม่ควรมีสถานะข้ามค้าง (ข้อมูลจากเวอร์ชันเก่า)
     skipped: Object.fromEntries(Object.entries(pick(d.skipped, known, v => v === true)).filter(([id]) => !done[id])),
     snoozed: isObj(d.snoozed) ? pick(d.snoozed, known, v => typeof v === 'string' && DAY_RE.test(v)) : {},

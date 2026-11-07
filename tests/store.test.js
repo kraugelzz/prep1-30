@@ -135,3 +135,10 @@ test('จำนวนวัน: ค่าเริ่มต้น 3, ค่า�
   a.importJSON(JSON.stringify({ version: 1, done: {}, skipped: {}, expiry: {}, contacts: [] }));
   assert.equal(a.state.days, 3);
 });
+
+test('doneDays ถูกเก็บและกรองค่าผิด', () => {
+  const a = createStore(fakeStorage(), { knownIds: ['kit-1', 'kit-2'] });
+  a.importJSON(JSON.stringify({ version: 1, done: {}, skipped: {}, expiry: {}, contacts: [], doneDays: { 'kit-1': 7, 'kit-2': 'x', 'kit-99': 3 } }));
+  assert.deepEqual(a.state.doneDays, { 'kit-1': 7 });
+  assert.deepEqual(defaultState().doneDays, {});
+});

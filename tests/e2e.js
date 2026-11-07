@@ -102,6 +102,51 @@ const scenarios = {
     check('7 วันยังไม่มีขั้นแผงโซลาร์', text('.mt40 p:nth-of-type(2)') === 'ขั้นที่ 1 จาก 2', text('.mt40 p:nth-of-type(2)'));
   },
 
+  async 'ไม่มีตัวแทน {…} โผล่ในหน้าใดเลย'() {
+    // kit-1 ใกล้หมดอายุ → หน้าแรกแสดงคำอธิบายของน้ำดื่ม (เคยหลุด {days})
+    await boot(seed({ days: 10, done: allDone(), expiry: { 'kit-1': isoIn(5) } }));
+    const routes = ['#/', '#/all', '#/check', '#/sos', '#/contacts', '#/print', '#/about', '#/days',
+      ...ALL.flatMap(id => [0, 1, 2, 3, 4, 5].map(i => `#/item/${id}/${i}`))];
+    const bad = [];
+    for (const r of routes) {
+      win().location.hash = r;
+      await wait(15);
+      if (/\{(days|water|meds)\}/.test(doc().body.textContent)) bad.push(r);
+    }
+    check('ทุกหน้าไม่มี {days} {water} {meds}', bad.length === 0, bad.slice(0, 5).join(' '));
+  },
+
+  async 'ลิงก์เพิ่มรายชื่อพาไปหน้าที่มีช่องกรอก'() {
+    await boot(seed({ days: 30 }), '#/sos');
+    q('a[href^="#/item/contact-1/"]').click();
+    await wait(100);
+    check('มีช่องกรอกรายชื่อ', !!q('#f-contacts'));
+  },
+
+  async 'เลื่อนแถบวัน: ประกาศเฉพาะตอนปล่อยมือ'() {
+    await boot(null, '#/days');
+    check('ตัวอย่างไม่ใช่ live region', !q('#days-preview[aria-live]'));
+    const range = q('#f-days');
+    range.value = '12';
+    range.dispatchEvent(new Event('input', { bubbles: true }));
+    check('ระหว่างลากยังไม่ประกาศ', text('#days-say') === '', text('#days-say'));
+    range.dispatchEvent(new Event('change', { bubbles: true }));
+    check('ปล่อยมือแล้วประกาศสรุป', text('#days-say')?.includes('12 วัน') && text('#days-say')?.includes('48 ลิตร'), text('#days-say'));
+  },
+
+  async 'ลดแล้วเพิ่มวันกลับ ไม่ยกเลิกของที่เตรียมพอแล้ว'() {
+    await boot(seed({ days: 7, done: { 'kit-1': '2026-01-01' }, doneDays: { 'kit-1': 7 } }), '#/days');
+    click('[data-act="days-pick"][data-i="3"]');
+    click('[data-act="days-save"]');
+    await wait(100);
+    await go('#/days');
+    click('[data-act="days-pick"][data-i="7"]');
+    click('[data-act="days-save"]');
+    await wait(100);
+    check('น้ำยังติ๊กอยู่', !!JSON.parse(localStorage.getItem(KEY)).done['kit-1']);
+    check('ไม่มีข้อความให้เตรียมเพิ่ม', !q('.notice[role="status"]'));
+  },
+
   async 'เกิน 7 วัน: มีขั้นเพิ่ม'() {
     await boot(seed({ days: 14 }), '#/item/kit-4/2');
     check('ขั้นเพิ่มเรื่องแผงโซลาร์', text('h1')?.includes('แผงโซลาร์'), text('h1'));

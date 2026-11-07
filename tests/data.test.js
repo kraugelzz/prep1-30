@@ -49,3 +49,14 @@ test('ไม่มีตัวเลขวันตายตัวหลงเ�
     assert.doesNotMatch(it.title + it.steps.join(' '), /\b3 วัน|12 ลิตร|คูณ 3/, id);
   }
 });
+
+test('ข้อความทุกช่องใช้ตัวแทนที่รู้จัก และ fill แล้วไม่เหลือ {', async () => {
+  const { fill } = await import('../js/plan.js');
+  for (const it of ITEMS) {
+    const texts = [it.title, it.why, ...it.steps, it.extra?.text].filter(Boolean);
+    for (const t of texts) {
+      for (const m of t.matchAll(/\{(\w+)\}/g)) assert.ok(['days', 'water', 'meds'].includes(m[1]), `${it.id}: {${m[1]}}`);
+      for (const d of [1, 3, 7, 30]) assert.doesNotMatch(fill(t, d), /[{}]/, `${it.id} @${d}`);
+    }
+  }
+});

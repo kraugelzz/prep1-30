@@ -53,3 +53,30 @@ test('warning: ไม่มีคำเตือนถึง 7 วัน, มี
   assert.match(warning(10), /มากกว่า/);
   assert.match(warning(21), /ที่เก็บ/);
 });
+
+test('applyDays: ลด แล้วเพิ่มกลับไม่เกินที่เคยเตรียมไว้ → ไม่ยกเลิกติ๊ก', () => {
+  const s = defaultState();
+  s.days = 7;
+  s.done = { 'kit-1': 'x' };
+  s.doneDays = { 'kit-1': 7 };
+  assert.deepEqual(applyDays(s, 3), []);
+  assert.deepEqual(applyDays(s, 7), [], 'เคยเตรียมไว้ 7 วันแล้ว');
+  assert.equal(s.done['kit-1'], 'x');
+  assert.deepEqual(applyDays(s, 10), ['kit-1'], 'เกินที่เคยเตรียม → ต้องเพิ่ม');
+});
+
+test('applyDays: ข้อมูลเก่าที่ไม่มี doneDays ถือว่าเตรียมไว้เท่าจำนวนวันเดิม', () => {
+  const s = defaultState();
+  s.days = 3;
+  s.done = { 'kit-1': 'x' };
+  assert.deepEqual(applyDays(s, 5), ['kit-1']);
+});
+
+test('applyDays: ข้อมูลเก่า 7 → 3 → 7 ไม่ยกเลิกติ๊ก', () => {
+  const s = defaultState();
+  s.days = 7;
+  s.done = { 'kit-1': 'x' };
+  applyDays(s, 3);
+  assert.deepEqual(applyDays(s, 7), []);
+  assert.equal(s.done['kit-1'], 'x');
+});
