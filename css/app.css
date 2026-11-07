@@ -163,6 +163,17 @@ h2 { font-size: 13px; font-weight: 400; color: var(--muted); margin: 28px 0 8px;
 }
 .row .mins { display: block; font-size: 13px; color: var(--muted); }
 .sources li { margin-top: 10px; line-height: 1.6; }
+.goal { margin-top: 4px; }
+.goal a { color: var(--ink); margin-left: 4px; }
+input[type="range"] { display: block; width: 100%; min-height: 44px; margin-top: 6px; accent-color: var(--ink); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.chip {
+  min-height: 44px; padding: 0 16px;
+  border: 1px solid var(--field); border-radius: 999px;
+  background: none; color: var(--ink); font: inherit; font-size: 15px; cursor: pointer;
+}
+.chip[aria-pressed="true"] { border-color: var(--ink); background: var(--press); font-weight: 500; }
+.notice.warn { color: var(--warn); border-color: var(--warn); }
 .sources a { color: var(--ink); }
 
 .foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; }

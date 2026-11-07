@@ -126,3 +126,12 @@ test('สถานะข้ามที่ค้างบนข้อที่�
   st.setItem(KEY, JSON.stringify({ version: 1, done: { 'kit-1': '2026-11-01' }, skipped: { 'kit-1': true, 'kit-2': true }, expiry: {}, contacts: [] }));
   assert.deepEqual(createStore(st).state.skipped, { 'kit-2': true });
 });
+
+test('จำนวนวัน: ค่าเริ่มต้น 3, ค่าผิดถูกจำกัด 1–30, ข้อมูลเก่าที่ไม่มี days ได้ 3', () => {
+  assert.equal(defaultState().days, 3);
+  const a = createStore(fakeStorage());
+  a.importJSON(JSON.stringify({ version: 1, days: 99, done: {}, skipped: {}, expiry: {}, contacts: [] }));
+  assert.equal(a.state.days, 30);
+  a.importJSON(JSON.stringify({ version: 1, done: {}, skipped: {}, expiry: {}, contacts: [] }));
+  assert.equal(a.state.days, 3);
+});

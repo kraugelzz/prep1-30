@@ -53,7 +53,7 @@ const scenarios = {
     check('แสดง 0%', text('.big') === '0%', text('.big'));
     check('ข้อแรกเป็นข้อง่าย (เพิ่มคนสำคัญ)', text('.lead') === 'เพิ่มคนสำคัญอย่างน้อย 2 คน', text('.lead'));
     check('ชื่อแอปเห็นได้บนหน้าแรก', text('h1') === 'พร้อม 72' && q('h1').getBoundingClientRect().width > 50, text('h1'));
-    check('บอกว่าแอปทำอะไร', text('.purpose')?.includes('72 ชั่วโมง'), text('.purpose'));
+    check('บอกว่าแอปทำอะไร (ค่าเริ่มต้น 3 วัน)', text('.purpose')?.includes('ให้อยู่ได้ 3 วัน'), text('.purpose'));
     check('บอกว่าฟรี ไม่ต้องสมัคร ข้อมูลอยู่ในเครื่อง', ['ฟรี', 'ไม่ต้องสมัคร', 'อยู่ในเครื่อง'].every(w => text('.promise')?.includes(w)), text('.promise'));
     check('บอกเวลารวมที่เหลือ', /ราว .*(ชั่วโมง|นาที)/.test(text('.total') ?? ''), text('.total'));
     check('มีปุ่มโทร 191 และ 1669 บนหน้าแรก', !!q('a[href="tel:191"]') && !!q('a[href="tel:1669"]'));
@@ -80,10 +80,40 @@ const scenarios = {
     check('แนะนำทดสอบด้วยโหมดเครื่องบิน', doc().body.textContent.includes('โหมดเครื่องบิน'));
   },
 
+  async 'เลือกจำนวนวัน 1–30'() {
+    await boot(seed({ done: { 'kit-1': '2026-01-01', 'cyber-1': '2026-01-01' } }), '#/days');
+    const range = q('#f-days');
+    check('มีตัวเลื่อน 1–30 ค่าเริ่ม 3', range.min === '1' && range.max === '30' && range.value === '3');
+    range.value = '10';
+    range.dispatchEvent(new Event('input', { bubbles: true }));
+    check('ตัวอย่างน้ำ 40 ลิตร', doc().getElementById('days-preview').textContent.includes('40 ลิตร'));
+    check('เกิน 7 วันมีคำเตือน', !!q('#days-preview .notice.warn'));
+    click('[data-act="days-pick"][data-i="7"]');
+    check('ปุ่มเลือกเร็วเปลี่ยนค่า', q('#f-days').value === '7' && text('[data-act="days-save"]') === 'ใช้ 7 วัน');
+    click('[data-act="days-save"]');
+    await wait(120);
+    check('หน้าแรกบอก 7 วัน', text('.purpose')?.includes('ให้อยู่ได้ 7 วัน'), text('.purpose'));
+    check('แจ้งว่าข้อไหนต้องเตรียมเพิ่ม', text('.notice[role="status"]')?.includes('น้ำดื่ม 28 ลิตร'), text('.notice[role="status"]'));
+    const st = JSON.parse(localStorage.getItem(KEY));
+    check('น้ำถูกยกเลิกติ๊ก ไซเบอร์ไม่ถูกแตะ', !st.done['kit-1'] && !!st.done['cyber-1'] && st.days === 7);
+    await go('#/item/kit-2/0');
+    check('ชื่อข้ออาหารเป็น 7 วัน', text('.mt40 .small') === 'อาหารไม่ต้องปรุง 7 วัน', text('.mt40 .small'));
+    await go('#/item/kit-4/0');
+    check('7 วันยังไม่มีขั้นแผงโซลาร์', text('.mt40 p:nth-of-type(2)') === 'ขั้นที่ 1 จาก 2', text('.mt40 p:nth-of-type(2)'));
+  },
+
+  async 'เกิน 7 วัน: มีขั้นเพิ่ม'() {
+    await boot(seed({ days: 14 }), '#/item/kit-4/2');
+    check('ขั้นเพิ่มเรื่องแผงโซลาร์', text('h1')?.includes('แผงโซลาร์'), text('h1'));
+    check('จำนวนขั้นเพิ่มเป็น 3', text('.mt40 p:nth-of-type(2)') === 'ขั้นที่ 3 จาก 3', text('.mt40 p:nth-of-type(2)'));
+  },
+
   async 'หัวข้อที่รับโฟกัสไม่มีกรอบดำ'() {
     await boot(null, '#/all');
     const h = q('h1');
-    check('โฟกัสอยู่ที่หัวข้อ', doc().activeElement === h);
+    // Chrome ไม่ย้ายโฟกัสใน iframe ถ้าหน้าต่างทดสอบไม่ได้โฟกัสอยู่ — ตรวจเฉพาะตอนที่มีโฟกัส
+    check('โฟกัสอยู่ที่หัวข้อ (ข้ามถ้าหน้าต่างไม่มีโฟกัส)', !document.hasFocus() || doc().activeElement === h);
+    check('หัวข้อพร้อมรับโฟกัส', h.getAttribute('tabindex') === '-1');
     check('ไม่มีเส้นกรอบ', win().getComputedStyle(h).outlineStyle === 'none', win().getComputedStyle(h).outlineStyle);
   },
 

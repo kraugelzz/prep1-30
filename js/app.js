@@ -2,6 +2,7 @@ import { GROUPS, ITEMS, ORDER, HOTLINES, NEWS, SIGNALS, SOS_STEPS, IF_SCAMMED } 
 import { percent, groupPercent, nextItem, expiringIds, doneCount, addDays, SNOOZE_DAYS, isExpired, ackUntil, remainingMinutes, formatMinutes } from './progress.js';
 import { assess } from './scam.js';
 import { createStore, KEY } from './store.js';
+import { fill, quantities, applyDays, warning, clampDays, MIN_DAYS, MAX_DAYS } from './plan.js';
 
 const $app = document.getElementById('app');
 const byId = Object.fromEntries(ITEMS.map(i => [i.id, i]));
@@ -12,12 +13,15 @@ function safeLocalStorage() {
 const store = createStore(safeLocalStorage(), { knownIds: ITEMS.map(i => i.id) });
 
 // lastPct: ค่าที่เส้นความคืบหน้าแสดงอยู่ เพื่อให้เส้นขยับจากค่าเดิมไปค่าใหม่
-const ui = { offlineReady: null, updateReady: null, scamPicked: [], showScammed: false, lastPct: null };
+const ui = { offlineReady: null, updateReady: null, scamPicked: [], showScammed: false, lastPct: null, draftDays: null, daysNotice: '' };
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const today = () => new Date();
 const isoDay = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const baht = n => Math.round(n).toLocaleString('th-TH');
+const days = () => store.state.days;
+const T = text => fill(text, days()); // แทน {days} {water} {meds}
+const stepsOf = it => [...it.steps, ...(it.extra && days() >= it.extra.from ? [it.extra.text] : [])].map(T);
 const telHref = n => `tel:${String(n).replace(/[^\d+]/g, '')}`;
 
 // ───────── หน้าแรก ─────────
@@ -33,9 +37,9 @@ function viewHome() {
     const label = { todo: 'ต่อไป', skipped: 'ที่ข้ามไว้', expiring: 'ใกล้หมดอายุ ถึงเวลาเปลี่ยน', expired: 'หมดอายุแล้ว ถึงเวลาเปลี่ยน' }[next.reason];
     nextBlock = `
       <p class="small ${next.reason === 'expiring' || next.reason === 'expired' ? 'warn' : ''}">${label}</p>
-      <p class="lead">${esc(it.title)}</p>
+      <p class="lead">${esc(T(it.title))}</p>
       <p class="why">ราว ${it.minutes} นาที ${esc(it.why)}</p>
-      <a class="btn mt20" href="#/item/${it.id}/0" aria-label="เริ่ม: ${esc(it.title)}">เริ่มข้อนี้</a>`;
+      <a class="btn mt20" href="#/item/${it.id}/0" aria-label="เริ่ม: ${esc(T(it.title))}">เริ่มข้อนี้</a>`;
   } else {
     nextBlock = `
       <p class="lead">พร้อมแล้ว</p>
@@ -53,7 +57,9 @@ function viewHome() {
   return `
     <div class="top"><h1 class="brand" tabindex="-1">พร้อม 72</h1><a class="sos" href="#/sos">ฉุกเฉิน</a></div>
     ${notices.join('')}
-    <p class="purpose">เตรียมตัวให้อยู่ได้ 72 ชั่วโมงเมื่อเกิดเหตุฉุกเฉิน ทำครบ 30 ขั้นเล็กๆ แล้วคุณจะมีของ เงินสด และแผนติดต่อพอสำหรับ 3 วัน</p>
+    <p class="purpose">เตรียมตัวให้อยู่ได้ ${days()} วันเมื่อเกิดเหตุฉุกเฉิน ทำครบ 30 ขั้นเล็กๆ แล้วคุณจะมีของ เงินสด และแผนติดต่อพอสำหรับ ${days()} วัน</p>
+    <p class="small goal">เป้าหมาย ${days()} วัน <a href="#/days">เปลี่ยน</a></p>
+    ${ui.daysNotice ? `<p class="notice" role="status">${esc(ui.daysNotice)}</p>` : ''}
     <p class="promise">ฟรี ไม่ต้องสมัคร ไม่มีโฆษณา ข้อมูลอยู่ในเครื่องนี้เท่านั้น <a href="#/about">ใครทำ</a></p>
     <p class="big">${pct}%</p>
     <div class="bar" aria-hidden="true"><span data-pct="${pct}"></span></div>
@@ -76,7 +82,37 @@ function upcoming(next) {
   const ids = ORDER.filter(id => !s.done[id] && !s.skipped[id] && id !== next?.id).slice(0, 3);
   if (!ids.length) return '';
   return `<p class="small mt20">ข้อถัดๆ ไป</p>
-    <ul class="preview">${ids.map(id => `<li><span>${esc(byId[id].title)}</span><span class="small">${byId[id].minutes} นาที</span></li>`).join('')}</ul>`;
+    <ul class="preview">${ids.map(id => `<li><span>${esc(T(byId[id].title))}</span><span class="small">${byId[id].minutes} นาที</span></li>`).join('')}</ul>`;
+}
+
+// ───────── เลือกจำนวนวัน ─────────
+function daysPreview(d) {
+  const q = quantities(d);
+  const cash = store.state.dailySpend ? `${baht(store.state.dailySpend * q.days)} บาท` : 'ค่าใช้จ่ายต่อวัน × ' + q.days;
+  const w = warning(q.days);
+  return `<p class="big">${q.days} วัน</p>
+    <ul class="preview mt12">
+      <li><span>น้ำดื่ม</span><span>${q.water} ลิตร</span></li>
+      <li><span>อาหาร</span><span>${q.days} วัน</span></li>
+      <li><span>ยาประจำตัว</span><span>${q.meds} วัน</span></li>
+      <li><span>เงินสด</span><span>${cash}</span></li>
+    </ul>
+    ${w ? `<p class="notice warn">${w}</p>` : '<p class="small mt12">รัฐส่วนใหญ่แนะนำ 3–7 วัน</p>'}`;
+}
+
+function viewDays() {
+  const d = ui.draftDays ?? days();
+  return `
+    <div class="top"><a href="#/">ปิด</a><span></span></div>
+    <h1 class="mt16" tabindex="-1">อยากเตรียมให้พอกี่วัน</h1>
+    <label class="field">จำนวนวัน (${MIN_DAYS}–${MAX_DAYS})
+      <input type="range" id="f-days" min="${MIN_DAYS}" max="${MAX_DAYS}" step="1" value="${d}"></label>
+    <div class="chips" role="group" aria-label="เลือกเร็ว">
+      ${[3, 7, 14, 30].map(n => `<button class="chip" data-act="days-pick" data-i="${n}" aria-pressed="${n === d}">${n} วัน</button>`).join('')}
+    </div>
+    <div id="days-preview" aria-live="polite">${daysPreview(d)}</div>
+    <div class="spacer"></div>
+    <button class="btn" data-act="days-save">ใช้ ${d} วัน</button>`;
 }
 
 // ───────── เกี่ยวกับแอป ─────────
@@ -92,7 +128,7 @@ function viewAbout() {
   return `
     <div class="top"><a href="#/">ปิด</a><span></span></div>
     <h1 class="mt16" tabindex="-1">เกี่ยวกับพร้อม 72</h1>
-    <p class="mt12">แอปนี้พาคุณเตรียมตัวให้อยู่ได้อย่างน้อย 72 ชั่วโมงเมื่อไฟดับ เน็ตล่ม ธนาคารใช้ไม่ได้ หรือเกิดภัย และช่วยกันมิจฉาชีพที่ฉวยข่าววิกฤต</p>
+    <p class="mt12">แอปนี้พาคุณเตรียมตัวให้อยู่ได้ตามจำนวนวันที่เลือก (1–30 วัน ค่าเริ่มต้น 3 วันหรือ 72 ชั่วโมง)เมื่อไฟดับ เน็ตล่ม ธนาคารใช้ไม่ได้ หรือเกิดภัย และช่วยกันมิจฉาชีพที่ฉวยข่าววิกฤต</p>
     <h2>ใครทำ</h2>
     <p>ทำเป็นโครงการส่วนตัว ไม่แสวงกำไร ไม่มีโฆษณา ไม่ขายของ และไม่เก็บข้อมูลของคุณ</p>
     <h2>ข้อมูลของคุณ</h2>
@@ -112,7 +148,7 @@ function inputFields(it) {
     const v = s.dailySpend ?? '';
     html += `<label class="field">ใช้เงินต่อวันประมาณ (บาท)
       <input type="number" inputmode="numeric" min="1" step="1" id="f-spend" value="${esc(v)}" placeholder="400"></label>
-      <p class="small" id="f-goal">${v ? `เป้าเงินสด ${baht(v * 3)} บาท` : ''}</p>`;
+      <p class="small" id="f-goal">${v ? `เป้าเงินสด ${baht(v * days())} บาท` : ''}</p>`;
   }
   if (it.input === 'contacts') {
     const rows = s.contacts.length ? s.contacts : [{ name: '', phone: '' }, { name: '', phone: '' }];
@@ -141,7 +177,8 @@ function contactRow(c, i) {
 function viewItem(id, stepStr) {
   const it = byId[id];
   if (!it) return viewHome();
-  const n = it.steps.length;
+  const steps = stepsOf(it);
+  const n = steps.length;
   const step = Math.min(Math.max(parseInt(stepStr, 10) || 0, 0), n - 1);
   const last = step === n - 1;
   const done = !!store.state.done[id];
@@ -160,9 +197,9 @@ function viewItem(id, stepStr) {
   return `
     <div class="top"><a href="#/">ปิด</a><span class="small">${esc(GROUPS[it.group])}</span></div>
     <div class="mt40">
-      <p class="small">${esc(it.title)}</p>
+      <p class="small">${esc(T(it.title))}</p>
       ${n > 1 ? `<p class="small">ขั้นที่ ${step + 1} จาก ${n}</p>` : ''}
-      <h1 class="lead mt8" tabindex="-1">${esc(it.steps[step])}</h1>
+      <h1 class="lead mt8" tabindex="-1">${esc(steps[step])}</h1>
       ${last ? inputFields(it) : ''}
       <p class="err" id="f-err" role="alert"></p>
     </div>
@@ -235,7 +272,7 @@ function viewAll() {
       const end = !exp.has(it.id) ? ''
         : `<span class="end warn">${isExpired(s, it.id, today()) ? 'หมดอายุแล้ว' : 'ใกล้หมดอายุ'}</span>`;
       return `<a class="row" href="#/item/${it.id}/0"><span class="mark ${mark}" aria-hidden="true"></span>
-        <span class="grow">${esc(it.title)}<span class="mins">${it.minutes} นาที</span><span class="sr">${d ? ' (ทำแล้ว)' : s.skipped[it.id] ? ' (ข้ามไว้)' : ''}</span></span>${end}</a>`;
+        <span class="grow">${esc(T(it.title))}<span class="mins">${it.minutes} นาที</span><span class="sr">${d ? ' (ทำแล้ว)' : s.skipped[it.id] ? ' (ข้ามไว้)' : ''}</span></span>${end}</a>`;
     }).join('')}</div>`).join('');
 
   return `
@@ -344,10 +381,10 @@ function viewPrint() {
     <h2>เมื่อเกิดเหตุ</h2>
     ${numberedList(SOS_STEPS)}
     ${personalBlock()}
-    ${s.dailySpend ? `<h2>เงินสดสำรอง</h2><p>เป้า ${baht(s.dailySpend * 3)} บาท (แบงก์ย่อย)</p>` : ''}
+    ${s.dailySpend ? `<h2>เงินสดสำรอง</h2><p>เป้า ${baht(s.dailySpend * days())} บาท (แบงก์ย่อย)</p>` : ''}
     <h2>เบอร์ฉุกเฉิน</h2>
     ${hotlineList()}
-    ${todo.length ? `<h2>ยังไม่ได้ทำ (${todo.length})</h2><p class="small">${todo.map(t => esc(t.title)).join(' / ')}</p>` : ''}
+    ${todo.length ? `<h2>ยังไม่ได้ทำ (${todo.length})</h2><p class="small">${todo.map(t => esc(T(t.title))).join(' / ')}</p>` : ''}
     <div class="spacer no-print"></div>
     <button class="btn no-print" data-act="print">พิมพ์</button>`;
 }
@@ -363,6 +400,7 @@ function route() {
     case 'contacts': return viewContacts();
     case 'print': return viewPrint();
     case 'about': return viewAbout();
+    case 'days': return viewDays();
     default: return viewHome();
   }
 }
@@ -434,6 +472,17 @@ $app.addEventListener('click', e => {
         if (until) s.snoozed[id] = until;
       }
     });
+    goHome();
+  } else if (act === 'days-pick') {
+    setDraftDays(Number(el.dataset.i));
+  } else if (act === 'days-save') {
+    const target = ui.draftDays ?? days();
+    let reset = [];
+    store.update(s => { reset = applyDays(s, target); });
+    ui.daysNotice = reset.length
+      ? `เปลี่ยนเป็น ${days()} วันแล้ว ${reset.length} ข้อต้องเตรียมเพิ่ม: ${reset.map(id => T(byId[id].title)).join(', ')}`
+      : '';
+    ui.draftDays = null;
     goHome();
   } else if (act === 'snooze') {
     store.update(s => { s.snoozed[id] = addDays(today(), SNOOZE_DAYS); });
@@ -526,18 +575,32 @@ window.addEventListener('storage', e => {
   if (!location.hash.startsWith('#/item/')) render();
 });
 
+function setDraftDays(n) {
+  const d = ui.draftDays = clampDays(n);
+  const range = document.getElementById('f-days');
+  if (range && Number(range.value) !== d) range.value = d;
+  document.getElementById('days-preview').innerHTML = daysPreview(d);
+  document.querySelectorAll('[data-act="days-pick"]').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.i) === d)));
+  document.querySelector('[data-act="days-save"]').textContent = `ใช้ ${d} วัน`;
+}
+
 $app.addEventListener('input', e => {
+  if (e.target.id === 'f-days') { setDraftDays(e.target.value); return; }
   const errEl = document.getElementById('f-err');
   if (errEl) errEl.textContent = '';
   e.target.removeAttribute?.('aria-invalid');
   e.target.removeAttribute?.('aria-describedby');
   if (e.target.id === 'f-spend') {
     const v = Number(e.target.value);
-    document.getElementById('f-goal').textContent = v > 0 ? `เป้าเงินสด ${baht(v * 3)} บาท` : '';
+    document.getElementById('f-goal').textContent = v > 0 ? `เป้าเงินสด ${baht(v * days())} บาท` : '';
   }
 });
 
-window.addEventListener('hashchange', render);
+window.addEventListener('hashchange', () => {
+  if (!location.hash.startsWith('#/days')) ui.draftDays = null;
+  if (location.hash !== '#/' && location.hash !== '') ui.daysNotice = '';
+  render();
+});
 render();
 
 // ───────── ออฟไลน์ ─────────

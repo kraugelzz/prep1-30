@@ -1,7 +1,7 @@
 // เก็บทุกไฟล์ไว้ในเครื่อง เปิดได้แม้ไม่มีเน็ต
 // VERSION มาจาก hash ของไฟล์ทั้งหมด — แก้ไฟล์แล้วรัน `npm run stamp`
 // (npm test จะล้มถ้าลืม) เครื่องผู้ใช้จึงได้ของใหม่เสมอ
-const VERSION = 'prep72-d57b7cb2';
+const VERSION = 'prep72-080daaa4';
 
 const FILES = [
   './',
@@ -10,6 +10,7 @@ const FILES = [
   'css/app.css',
   'js/app.js',
   'js/data.js',
+  'js/plan.js',
   'js/progress.js',
   'js/scam.js',
   'js/store.js',

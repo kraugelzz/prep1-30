@@ -1,10 +1,13 @@
 // เก็บข้อมูลในเครื่อง (localStorage) — ทนต่อ storage ที่ใช้ไม่ได้
 
+import { clampDays, DEFAULT_DAYS } from './plan.js';
+
 export const KEY = 'prep72.v1';
 
 export function defaultState() {
   return {
     version: 1,
+    days: DEFAULT_DAYS,
     done: {},
     skipped: {},
     snoozed: {},
@@ -41,6 +44,7 @@ function normalize(d, known) {
   const done = pick(d.done, known, v => typeof v === 'string' && v.length > 0);
   return {
     ...defaultState(),
+    days: clampDays(d.days ?? DEFAULT_DAYS),
     done,
     // ข้อที่ทำแล้วไม่ควรมีสถานะข้ามค้าง (ข้อมูลจากเวอร์ชันเก่า)
     skipped: Object.fromEntries(Object.entries(pick(d.skipped, known, v => v === true)).filter(([id]) => !done[id])),

@@ -35,3 +35,17 @@ test('ข้อแรกเป็นข้อง่ายที่เสร็�
   assert.ok(first.minutes <= 3, `${first.id} ใช้ ${first.minutes} นาที`);
   assert.equal(first.group === 'cyber' && first.id === 'cyber-1', false);
 });
+
+test('ข้อที่มี extra: from อยู่ในช่วง 1–30 และขั้นรวมไม่เกิน 5', () => {
+  for (const it of ITEMS.filter(i => i.extra)) {
+    assert.ok(it.extra.from >= 1 && it.extra.from <= 30, it.id);
+    assert.ok(it.steps.length + 1 <= 5, it.id);
+  }
+});
+
+test('ไม่มีตัวเลขวันตายตัวหลงเหลือในข้อของ/เงิน', () => {
+  for (const id of ['money-1', 'kit-1', 'kit-2', 'kit-3']) {
+    const it = ITEMS.find(i => i.id === id);
+    assert.doesNotMatch(it.title + it.steps.join(' '), /\b3 วัน|12 ลิตร|คูณ 3/, id);
+  }
+});
